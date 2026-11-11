@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Score</title>
+<meta name="description" content="Score: an offline Guitar Pro player. Drop a .gp, .gpx, .gp3, .gp4 or .gp5 file, slow it down, loop a section, mute or solo tracks. No login, no upload, no AI.">
+<meta name="theme-color" content="#0b0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Score">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/score.css">
+</head>
+<body>
+
+<div id="app" class="app no-song">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="26" height="26"><path d="M6 8h20M6 13h20M6 18h20M6 23h20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><circle cx="12" cy="18" r="3.2" fill="currentColor"/><path d="M15.2 18V7.5l6 2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+      </span>
+      <span class="brand-name">Score</span>
+      <span class="brand-tag">Play it slow. Loop it. Own it.</span>
+    </div>
+    <div class="song-meta" id="songMeta" hidden>
+      <span class="song-title" id="songTitle"></span>
+      <span class="song-artist" id="songArtist"></span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn" id="btnOpen" title="Open a Guitar Pro file (O)">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span>Open</span>
+      </button>
+      <button class="btn" id="btnLibrary" title="Songs saved on this device">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M4 4h4v12H4zM9 4h4v12H9zM14 5l3 11-3 .8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span>Library</span>
+      </button>
+      <button class="btn icon" id="btnSidebar" title="Tracks and settings (T)">
+        <svg viewBox="0 0 20 20" width="18" height="18"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="btn icon" id="btnTheme" title="Toggle light / dark">
+        <svg viewBox="0 0 20 20" width="18" height="18"><path d="M10 3a7 7 0 1 0 7 7 5.5 5.5 0 0 1-7-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn icon" id="btnHelp" title="Keyboard shortcuts (?)">
+        <svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 8a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14" r=".9" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main area -->
+  <div class="main">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <section class="panel">
+        <h2>Loop section</h2>
+        <div class="loop-grid">
+          <label>From bar
+            <input type="number" id="loopStart" min="1" step="1" inputmode="numeric" placeholder="1">
+          </label>
+          <label>To bar
+            <input type="number" id="loopEnd" min="1" step="1" inputmode="numeric" placeholder="4">
+          </label>
+        </div>
+        <div class="loop-actions">
+          <button class="btn small" id="btnLoopHere" title="Set the loop to the bar that is playing now">This bar</button>
+          <button class="btn small" id="btnLoopApply" title="Apply the bars above">Set loop</button>
+          <button class="btn small" id="btnLoopClear" title="Clear the loop (Esc)">Clear</button>
+        </div>
+        <p class="hint">Tip: drag across the music to select bars with the mouse. Press <kbd>[</kbd> and <kbd>]</kbd> while playing to mark the start and end.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Tracks</h2>
+        <div class="track-list" id="trackList"></div>
+        <div class="panel-foot">
+          <button class="btn small" id="btnShowAll">Show all</button>
+          <button class="btn small" id="btnResetMix">Reset mix</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Display</h2>
+        <div class="seg" id="segNotation" role="group" aria-label="Notation">
+          <button data-value="scoretab" class="active">Tab + Score</button>
+          <button data-value="tab">Tab</button>
+          <button data-value="score">Score</button>
+        </div>
+        <div class="seg" id="segLayout" role="group" aria-label="Layout">
+          <button data-value="page" class="active">Page</button>
+          <button data-value="horizontal">Horizontal</button>
+        </div>
+        <div class="row">
+          <span class="row-label">Zoom</span>
+          <button class="btn small" id="btnZoomOut">-</button>
+          <span class="mono" id="zoomValue">100%</span>
+          <button class="btn small" id="btnZoomIn">+</button>
+        </div>
+        <div class="row">
+          <span class="row-label">Volume</span>
+          <input type="range" id="masterVolume" min="0" max="100" value="100" aria-label="Master volume">
+        </div>
+      </section>
+
+      <section class="panel about">
+        <p>Score runs entirely in your browser. Files never leave this device. Songs you open are kept in a local library so they work offline.</p>
+        <p class="muted">Rendering and audio by <a href="https://alphatab.net" target="_blank" rel="noopener">alphaTab</a>. Formats: .gp (GP7 and GP8), .gpx (GP6), .gp3, .gp4, .gp5, MusicXML, Capella.</p>
+      </section>
+    </aside>
+
+    <!-- Viewport -->
+    <div class="viewport-wrap">
+      <div class="viewport" id="viewport">
+        <div class="at-wrap">
+          <div id="alphaTab"></div>
+        </div>
+      </div>
+
+      <!-- Empty state / drop zone -->
+      <div class="dropzone" id="dropzone">
+        <div class="drop-inner">
+          <div class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="64" height="64"><path d="M32 40V14M22 24l10-10 10 10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 38v8a6 6 0 0 0 6 6h28a6 6 0 0 0 6-6v-8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          </div>
+          <h1>Drop a Guitar Pro file</h1>
+          <p>.gp, .gpx, .gp3, .gp4, .gp5 (and MusicXML)</p>
+          <div class="drop-buttons">
+            <button class="btn primary" id="btnOpen2">Choose a file</button>
+            <button class="btn" id="btnDemo">Try the demo riff</button>
+          </div>
+          <p class="muted small">No account. No upload. Works offline after the first visit.</p>
+        </div>
+      </div>
+
+      <div class="drag-overlay" id="dragOverlay"><div>Drop to open</div></div>
+
+      <div class="loading" id="loading" hidden>
+        <div class="spinner"></div>
+        <span id="loadingText">Loading</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transport -->
+  <footer class="transport">
+    <div class="transport-row progress-row">
+      <span class="mono time" id="timeCurrent">0:00</span>
+      <input type="range" id="progress" min="0" max="1000" value="0" step="1" aria-label="Position">
+      <span class="mono time" id="timeTotal">0:00</span>
+    </div>
+    <div class="transport-row controls-row">
+      <div class="group">
+        <button class="btn icon" id="btnStop" title="Stop (S)">
+          <svg viewBox="0 0 20 20" width="18" height="18"><rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+        </button>
+        <button class="btn play" id="btnPlay" title="Play / Pause (Space)" disabled>
+          <svg class="ic-play" viewBox="0 0 20 20" width="22" height="22"><path d="M6 4.5v11l9-5.5z" fill="currentColor"/></svg>
+          <svg class="ic-pause" viewBox="0 0 20 20" width="22" height="22"><path d="M6 4h3v12H6zM11 4h3v12h-3z" fill="currentColor"/></svg>
+        </button>
+        <span class="bar-indicator mono" id="barIndicator" title="Current bar">Bar -</span>
+      </div>
+
+      <div class="group tempo">
+        <button class="btn small" id="btnSpeedDown" title="Slower (-)">-</button>
+        <input type="range" id="speed" min="25" max="200" value="100" step="5" aria-label="Playback speed">
+        <button class="btn small" id="btnSpeedUp" title="Faster (+)">+</button>
+        <button class="btn small ghost" id="btnSpeedReset" title="Back to 100% (0)">
+          <span class="mono" id="speedValue">100%</span>
+          <span class="mono bpm" id="bpmValue"></span>
+        </button>
+      </div>
+
+      <div class="group toggles">
+        <button class="btn toggle" id="btnLoop" title="Loop (L)" aria-pressed="false">
+          <svg viewBox="0 0 20 20" width="16" height="16"><path d="M4 9V7a3 3 0 0 1 3-3h7M16 11v2a3 3 0 0 1-3 3H6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 2l2.5 2L12 6M8 14l-2.5 2L8 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Loop</span>
+        </button>
+        <button class="btn toggle" id="btnMetronome" title="Metronome (M)" aria-pressed="false">
+          <svg viewBox="0 0 20 20" width="16" height="16"><path d="M7 3h6l3 14H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 14L14 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Metronome</span>
+        </button>
+        <button class="btn toggle" id="btnCountIn" title="Count-in one bar before playing (C)" aria-pressed="false">
+          <span class="mono">1 2 3 4</span>
+          <span>Count-in</span>
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Library dialog -->
+  <dialog id="libraryDialog" class="dialog">
+    <div class="dialog-head">
+      <h2>Library</h2>
+      <span class="muted" id="libraryCount"></span>
+      <button class="btn icon close" data-close title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="library-list" id="libraryList"></div>
+      <p class="muted small">Songs are stored in this browser only (IndexedDB). Clearing site data removes them.</p>
+    </div>
+  </dialog>
+
+  <!-- Help dialog -->
+  <dialog id="helpDialog" class="dialog">
+    <div class="dialog-head">
+      <h2>Keyboard shortcuts</h2>
+      <button class="btn icon close" data-close title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <table class="shortcuts">
+        <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Stop and go to start</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Loop on / off</td></tr>
+        <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Loop start / end at the current bar</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Clear the loop selection</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Metronome on / off</td></tr>
+        <tr><td><kbd>C</kbd></td><td>Count-in on / off</td></tr>
+        <tr><td><kbd>-</kbd> / <kbd>+</kbd></td><td>Speed down / up by 5%</td></tr>
+        <tr><td><kbd>0</kbd></td><td>Speed back to 100%</td></tr>
+        <tr><td><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></td><td>Previous / next bar</td></tr>
+        <tr><td><kbd>O</kbd></td><td>Open a file</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Show / hide the side panel</td></tr>
+        <tr><td><kbd>?</kbd></td><td>This help</td></tr>
+      </table>
+      <p class="muted small">Click a beat in the music to jump there. Drag across beats to select a loop range.</p>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+  <input type="file" id="fileInput" accept=".gp,.gpx,.gp3,.gp4,.gp5,.xml,.musicxml,.mxl,.capx" hidden>
+</div>
+
+<script src="vendor/alphatab/alphaTab.min.js"></script>
+<script src="js/score.js"></script>
+</body>
+</html>
