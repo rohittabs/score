@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Score in 2 minutes</title>
-<meta name="description" content="A free Guitar Pro player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta name="description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
 <meta name="theme-color" content="#070b12">
 <link rel="icon" type="image/png" href="favicon.png">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Score, play it slow, loop it, own it">
-<meta property="og:description" content="A free Guitar Pro player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta property="og:description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
 <meta property="og:image" content="https://rohittabs.github.io/score/icon-512.png">
 <meta property="og:url" content="https://rohittabs.github.io/score/slides.html">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Score, play it slow, loop it, own it">
-<meta name="twitter:description" content="A free Guitar Pro player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta name="twitter:description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
 <meta name="twitter:image" content="https://rohittabs.github.io/score/icon-512.png">
 
 <style>
@@ -108,6 +108,20 @@ p strong{color:#fff;font-weight:750}
 .slide.inview .tabstaff .head{animation:sweep 2.4s linear infinite}
 @keyframes sweep{from{left:30%}to{left:68%}}
 
+.tabsdemo{display:flex;gap:6px;align-items:flex-end;padding:12px 12px 0;border-radius:18px 18px 0 0;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-bottom:0}
+.tabsdemo .tb{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:38px;padding:0 9px;border-radius:11px 11px 0 0;font-size:14px;font-weight:650;color:var(--muted);white-space:nowrap;overflow:hidden}
+.tabsdemo .tb b{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 5px;border-radius:5px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.6)}
+.tabsdemo .tb span{overflow:hidden;text-overflow:ellipsis}
+.tabsdemo .tb.on{flex:1.4;background:rgba(255,255,255,.1);color:#fff;box-shadow:inset 0 2px 0 #22d3ee}
+.tabsdemo .tb.on b{border-color:#22d3ee;color:#22d3ee}
+.tabsheet{height:26px;border-radius:0 0 18px 18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);border-top:0}
+.rows{display:flex;flex-direction:column;gap:10px}
+.rows .cap{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.rows .staff{position:relative;height:52px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);overflow:hidden;display:flex}
+.rows .staff .bar{flex:1;position:relative;border-right:2px solid rgba(255,255,255,.28);background:repeating-linear-gradient(to bottom,transparent 0 9px,rgba(255,255,255,.2) 9px 10px)}
+.rows .staff .bar:last-child{border-right:0}
+.rows .staff .bar i{position:absolute;top:7px;bottom:7px;width:2px;border-radius:2px;background:#22d3ee}
+.rows.dense .staff .bar i{width:1.5px}
 .cta{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--grad);color:#fff;font-size:19px;font-weight:800;padding:17px 26px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 16px 40px -12px rgba(59,130,246,.75);text-decoration:none;font-family:inherit}
 .cta:active{transform:scale(.98)}
 .cta.ghost{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);box-shadow:none}
@@ -156,7 +170,7 @@ p strong{color:#fff;font-weight:750}
     <div class="inner">
       <div class="brandmark rise"><img src="icon-192.png" alt=""><span>Score</span></div>
       <h1 class="gt rise">Play it slow. Loop it. Own it.</h1>
-      <p class="lead rise" style="color:#fff">A Guitar Pro player built for practice.</p>
+      <p class="lead rise" style="color:#fff">A Guitar Pro and MuseScore player built for practice.</p>
       <p class="rise">Free. No account. No AI. Works offline.</p>
     </div>
     <div class="swipe">
@@ -177,15 +191,49 @@ p strong{color:#fff;font-weight:750}
   <section class="slide">
     <div class="inner">
       <p class="kicker rise">Step one</p>
-      <h2 class="rise">Drop in any Guitar Pro file</h2>
-      <p class="rise">Drag a tab onto the page, or tap Open. Every version since Guitar Pro 3 works.</p>
+      <h2 class="rise">Drop in a Guitar Pro or MuseScore file</h2>
+      <p class="rise">Drag it onto the page, or tap Open. Every Guitar Pro version since 3 works, and MuseScore 3 and later.</p>
       <div class="grid rise">
         <div class="gcell"><div class="n gt">.gp</div><div class="l">Guitar Pro 7 and 8</div></div>
         <div class="gcell"><div class="n gt">.gpx</div><div class="l">Guitar Pro 6</div></div>
         <div class="gcell"><div class="n gt">.gp5 .gp4</div><div class="l">Guitar Pro 5 and 4</div></div>
         <div class="gcell"><div class="n gt">.gp3</div><div class="l">Guitar Pro 3</div></div>
+        <div class="gcell"><div class="n gt">.mscz</div><div class="l">MuseScore 3, 4 and later</div></div>
+        <div class="gcell"><div class="n gt">.mscx</div><div class="l">MuseScore, uncompressed</div></div>
       </div>
-      <p class="rise">MusicXML and Capella files open too. Drop several at once and the rest go straight to your library.</p>
+      <p class="rise">MusicXML and Capella files open too.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">New in 1.2</p>
+      <h2 class="rise">Every song in its own tab</h2>
+      <div class="rise">
+        <div class="tabsdemo">
+          <div class="tb"><b>GP5</b><span>Riff</span></div>
+          <div class="tb on"><b>MSCZ</b><span>Etude</span></div>
+          <div class="tb"><b>GP</b><span>Solo</span></div>
+        </div>
+        <div class="tabsheet"></div>
+      </div>
+      <div class="tones rise">
+        <div class="tone"><div class="t">Open several</div><div class="q">Drop a handful of files at once. Each one gets a tab.</div></div>
+        <div class="tone"><div class="t">Switch</div><div class="q">Click a tab, or press Shift with the left or right arrow.</div></div>
+        <div class="tone"><div class="t">Each one remembers</div><div class="q">Its own tempo, loop, mix, bars per row and the spot you stopped at.</div></div>
+      </div>
+      <p class="rise">Close Score and open it again tomorrow: the same tabs are waiting.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">New in 1.2</p>
+      <h2 class="rise">MuseScore files, no export needed</h2>
+      <p class="rise">Open the <strong>.mscz</strong> straight from your MuseScore folder. Score translates it right in the browser.</p>
+      <div class="stat sm gt rise">121 / 133</div>
+      <p class="rise">MuseScore's own test scores that came out <strong>identical, note for note,</strong> to MuseScore's MusicXML export. The average match is 96%, and all 760 test files open.</p>
+      <p class="rise">Tab keeps its strings and frets, with bends, slides, hammer-ons, let ring and palm mute. Files from MuseScore 2 need one save in MuseScore 3 or 4 first.</p>
     </div>
   </section>
 
@@ -245,28 +293,29 @@ p strong{color:#fff;font-weight:750}
 
   <section class="slide">
     <div class="inner">
-      <p class="kicker rise">New in 1.1</p>
-      <h2 class="rise">Three guitars to choose from</h2>
-      <p class="rise">One tap changes every guitar track in the song. Bass, drums and everything else stay as written.</p>
-      <div class="tones rise">
-        <div class="tone"><div class="t">Acoustic</div><div class="q">Steel string guitar.</div></div>
-        <div class="tone"><div class="t">Electric</div><div class="q">Clean electric, sampled from a real guitar through an amp.</div></div>
-        <div class="tone"><div class="t">Nylon</div><div class="q">Classical guitar.</div></div>
+      <p class="kicker rise">Guitar sound</p>
+      <h2 class="rise">Four guitars and a ukulele</h2>
+      <p class="rise">One tap changes every guitar and ukulele track in the song. Bass, drums and everything else stay as written.</p>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">Acoustic</div><div class="l">steel string guitar</div></div>
+        <div class="gcell"><div class="n gt">Electric</div><div class="l">clean, recorded through an amp</div></div>
+        <div class="gcell"><div class="n gt">Nylon</div><div class="l">classical guitar</div></div>
+        <div class="gcell"><div class="n gt">Ukulele</div><div class="l">new in 1.2, a real tenor uke</div></div>
       </div>
-      <p class="rise">Or leave it on <strong>Original</strong> and hear the instruments the tab was written for.</p>
+      <p class="rise">On <strong>Ukulele</strong>, guitar parts move up into the ukulele's range. Leave it on <strong>Original</strong> for the instruments the file was written for, now with ukulele parts on a ukulele.</p>
     </div>
   </section>
 
   <section class="slide">
     <div class="inner">
-      <p class="kicker rise">Also new in 1.1</p>
+      <p class="kicker rise">The sound</p>
       <h2 class="rise">Recorded instruments, not beeps</h2>
-      <p class="rise">Version 1.0 played tiny looped fragments. Now every guitar, bass and drum is a recording of a real instrument that rings out the way a string does.</p>
+      <p class="rise">Every guitar, ukulele, bass and drum is a recording of a real instrument that rings out the way a string does.</p>
       <div class="grid rise">
         <div class="gcell"><div class="n gt">128</div><div class="l">instruments</div></div>
         <div class="gcell"><div class="n gt">13</div><div class="l">drum kits</div></div>
         <div class="gcell"><div class="n gt">Room</div><div class="l">a touch of reverb, on or off</div></div>
-        <div class="gcell"><div class="n gt">17 MB</div><div class="l">downloaded once, then kept</div></div>
+        <div class="gcell"><div class="n gt">17.5 MB</div><div class="l">downloaded once, then kept</div></div>
       </div>
     </div>
   </section>
@@ -287,10 +336,35 @@ p strong{color:#fff;font-weight:750}
 
   <section class="slide">
     <div class="inner">
+      <p class="kicker rise">New in 1.2</p>
+      <h2 class="rise">Bars per row</h2>
+      <p class="rise">Fast passages can squeeze four bars onto a line until the notes run together. Pick how many bars each row gets.</p>
+      <div class="rows dense rise">
+        <div class="cap">Auto</div>
+        <div class="staff">
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+        </div>
+      </div>
+      <div class="rows rise">
+        <div class="cap">2 per row</div>
+        <div class="staff">
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+        </div>
+      </div>
+      <p class="rise"><strong>Auto, or 1 to 6.</strong> Under Display in the side panel. Each song keeps its own setting.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
       <p class="kicker rise">Library</p>
       <h2 class="rise">It remembers where you were</h2>
       <p class="rise">Every file you open is kept on your device. Open it again from the Library with no internet at all.</p>
-      <p class="rise"><strong>Score also remembers how you practiced each song:</strong> the tempo, the loop, which tracks were muted, soloed and shown.</p>
+      <p class="rise"><strong>Score also remembers how you practiced each song:</strong> the tempo, the loop, the bars per row, which tracks were muted, soloed and shown.</p>
       <p class="lead gt rise">Come back tomorrow and carry on at 70%, bars 9 to 12.</p>
     </div>
   </section>
@@ -307,6 +381,7 @@ p strong{color:#fff;font-weight:750}
         <kbd>Esc</kbd><span>Clear the loop</span>
         <kbd>- &nbsp;+</kbd><span>Slower or faster by 5%</span>
         <kbd>&larr; &rarr;</kbd><span>Previous or next bar</span>
+        <kbd>Shift &larr; &rarr;</kbd><span>Previous or next tab</span>
         <kbd>M &nbsp;C</kbd><span>Metronome, count-in</span>
         <kbd>T</kbd><span>Show or hide the side panel</span>
         <kbd>?</kbd><span>All shortcuts</span>
@@ -318,7 +393,7 @@ p strong{color:#fff;font-weight:750}
     <div class="inner">
       <p class="kicker rise">Nothing is sent anywhere</p>
       <h2 class="rise">There is no server</h2>
-      <p class="rise">No account, no sign up, no tracking, no AI. Your tabs are read by your own browser and never uploaded.</p>
+      <p class="rise">No account, no sign up, no tracking, no AI. Your files are read by your own browser and never uploaded.</p>
       <p class="rise">After the first visit Score works with the plane mode on. Add it to your home screen or Dock and it opens like any other app.</p>
       <p class="lead gt rise">Your files are nobody else's data.</p>
     </div>
@@ -328,7 +403,7 @@ p strong{color:#fff;font-weight:750}
     <div class="inner">
       <h2 class="rise">One thing to know</h2>
       <p class="rise">The library lives in your browser. <strong>Clear your browser data and the saved songs are gone.</strong></p>
-      <p class="lead rise" style="color:#fff">Keep your original Guitar Pro files somewhere safe.</p>
+      <p class="lead rise" style="color:#fff">Keep your original Guitar Pro and MuseScore files somewhere safe.</p>
       <p class="rise">Score is a place to practice them, not the only copy.</p>
     </div>
   </section>

@@ -1,16 +1,18 @@
-/* Score: offline Guitar Pro player
+/* Score: offline Guitar Pro and MuseScore player
    Built on alphaTab (https://alphatab.net, MPL-2.0).
    No accounts, no uploads, no AI. Everything runs in this browser. */
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const SETTINGS_KEY = 'score.settings.v1';
   const DB_NAME = 'score-library';
   const DB_STORE = 'songs';
   const SOUND_URL = 'sounds/score.sf3';
-  const SOUND_BYTES = 17992588;            // used for the progress bar when the server sends no length
-  const SOUND_CACHE = 'score-sounds-v1';   // kept apart from the app cache so app updates do not download the sounds again
+  const SOUND_BYTES = 18352296;            // used for the progress bar when the server sends no length
+  const SOUND_CACHE = 'score-sounds-v2';   // kept apart from the app cache so app updates do not download the sounds again
+  const DEMO_KEY = 'demo';
+  const MAX_CACHED_SCORES = 6;             // parsed songs kept in memory for instant tab switching
 
   const $ = (id) => document.getElementById(id);
   const app = $('app');
@@ -52,6 +54,9 @@
     helpDialog: $('helpDialog'),
     toast: $('toast'),
     sidebar: $('sidebar'),
+    tabBar: $('tabBar'),
+    tabList: $('tabList'),
+    segBars: $('segBars'),
   };
 
   /* ---------------------------------------------------------------------
@@ -65,8 +70,10 @@
     metronome: false,
     countIn: false,
     masterVolume: 1,
-    guitarSound: 'original',   // original | acoustic | electric | nylon
+    guitarSound: 'original',   // original | acoustic | electric | nylon | ukulele
     reverb: true,
+    openTabs: [],              // keys of the songs open as tabs, restored on the next visit
+    activeTab: null,
     sidebarHidden: window.innerWidth < 900,
   };
   let settings = Object.assign({}, defaults);
@@ -107,6 +114,9 @@
     loads: 0,
     soundsReady: false,
     resume: null,          // { tick, play } restored after the sound of a track was changed
+    loadedKey: null,       // tab key of the song alphaTab is showing
+    loadToken: 0,          // bumped for every load, so a slow load that was overtaken is dropped
+    barsPerRow: -1,        // -1 lets alphaTab fit as many bars as the width allows
   };
 
   /* ---------------------------------------------------------------------
@@ -174,6 +184,7 @@
         layoutMode: layoutModeFor(settings.layout),
         staveProfile: staveProfileFor(settings.notation),
         scale: settings.zoom,
+        barsPerRow: -1,
         resources: themes[settings.theme],
       },
       player: {
@@ -370,20 +381,36 @@
   }
 
   /* ---------------------------------------------------------------------
-     Guitar sound: play every guitar track as written, or as acoustic, electric or nylon
+     Guitar sound: play every guitar and ukulele track as written, or as acoustic, electric, nylon or ukulele.
+     General MIDI has no ukulele, so files store ukulele parts as nylon guitar (program 24). The sound bank
+     adds two ukulele presets on program 24: bank 8 plays notes at their real pitch (for ukulele parts) and
+     bank 9 moves notes below middle C up by whole octaves into the ukulele's range (for guitar parts).
   --------------------------------------------------------------------- */
   const GUITAR_SOUNDS = {
     original: { program: null, label: 'Original' },
     acoustic: { program: 25, label: 'Acoustic' },
     electric: { program: 27, label: 'Electric' },
     nylon: { program: 24, label: 'Nylon' },
+    ukulele: { program: 24, label: 'Ukulele' },
   };
+  const UKULELE_BANK = 8;
+  const UKULELE_GUITAR_BANK = 9;
   const AUTOMATION_INSTRUMENT = 2;
   const AUTOMATION_BANK = 5;
-  const originalSounds = new WeakMap(); // track -> { program, automations: [[automation, value], ...] }
+  const originalSounds = new WeakMap(); // track -> { program, isGuitar, isUkulele, instruments: [[automation, value]], banks: [automation] }
 
   function isPercussionTrack(track) {
     return (track.playbackInfo && track.playbackInfo.primaryChannel === 9) || track.staves.some((st) => st.isPercussion);
+  }
+
+  // A ukulele part: named like one, or a guitar-family track with four strings tuned between C3 and C5
+  // (soprano, concert and tenor GCEA, low G, and baritone DGBE all fit; a bass never does).
+  function isUkuleleTrack(track, program) {
+    if (/uk[eu]l[ea]le|\buke\b/i.test((track.name || '') + ' ' + (track.shortName || ''))) return true;
+    if (program < 24 || program > 31) return false;
+    const staff = track.staves[0];
+    const tuning = staff && staff.stringTuning ? staff.stringTuning.tunings : (staff && staff.tuning) || [];
+    return tuning.length === 4 && tuning.every((p) => p >= 48 && p <= 72);
   }
 
   function eachAutomation(track, fn) {
@@ -398,26 +425,53 @@
     }
   }
 
+  function soundInfo(track) {
+    let info = originalSounds.get(track);
+    if (!info) {
+      const program = track.playbackInfo.program;
+      info = {
+        program,
+        isGuitar: program >= 24 && program <= 31,
+        isUkulele: isUkuleleTrack(track, program),
+        instruments: [],
+        banks: [],
+      };
+      eachAutomation(track, (a) => {
+        if (a.type === AUTOMATION_INSTRUMENT) info.instruments.push([a, a.value]);
+        if (a.type === AUTOMATION_BANK) info.banks.push(a);
+      });
+      originalSounds.set(track, info);
+    }
+    return info;
+  }
+
+  function hasChangeableSound(track) {
+    if (isPercussionTrack(track)) return false;
+    const info = soundInfo(track);
+    return info.isGuitar || info.isUkulele;
+  }
+
   // Runs before alphaTab generates the MIDI for a song, and again whenever the choice changes.
   function applyGuitarSound(score) {
-    const choice = GUITAR_SOUNDS[settings.guitarSound] || GUITAR_SOUNDS.original;
+    const choice = GUITAR_SOUNDS[settings.guitarSound] ? settings.guitarSound : 'original';
     for (const track of score.tracks) {
       if (isPercussionTrack(track)) continue;
-      let orig = originalSounds.get(track);
-      if (!orig) {
-        orig = { program: track.playbackInfo.program, automations: [] };
-        eachAutomation(track, (a) => {
-          if (a.type === AUTOMATION_INSTRUMENT) orig.automations.push([a, a.value]);
-          // The sound bank only has the standard bank; other banks would leave the track silent.
-          if (a.type === AUTOMATION_BANK) a.value = 0;
-        });
-        track.playbackInfo.bank = 0;
-        originalSounds.set(track, orig);
+      const info = soundInfo(track);
+      let program = null;   // null keeps what the file says
+      let bank = 0;
+      if (info.isUkulele) {
+        if (choice === 'original' || choice === 'ukulele') { program = 24; bank = UKULELE_BANK; }
+        else program = GUITAR_SOUNDS[choice].program;
+      } else if (info.isGuitar && choice !== 'original') {
+        program = GUITAR_SOUNDS[choice].program;
+        if (choice === 'ukulele') bank = UKULELE_GUITAR_BANK;
       }
-      const isGuitar = orig.program >= 24 && orig.program <= 31;
-      const override = isGuitar && choice.program !== null;
-      track.playbackInfo.program = override ? choice.program : orig.program;
-      for (const [automation, value] of orig.automations) automation.value = override ? choice.program : value;
+      track.playbackInfo.program = program === null ? info.program : program;
+      track.playbackInfo.bank = bank;
+      for (const [automation, value] of info.instruments) automation.value = program === null ? value : program;
+      // Bank changes inside the song must agree with the chosen bank, or they would switch the preset back.
+      // Banks other than the ones above do not exist in the sound bank and would leave the track silent.
+      for (const automation of info.banks) automation.value = bank;
     }
   }
 
@@ -437,8 +491,8 @@
       play: api.playerState === alphaTab.synth.PlayerState.Playing,
     };
     api.loadMidiForScore();
-    const guitars = state.score.tracks.filter((t) => { const o = originalSounds.get(t); return o && o.program >= 24 && o.program <= 31; }).length;
-    toast(guitars ? `Guitar sound: ${GUITAR_SOUNDS[value].label}` : 'This song has no guitar tracks to change.');
+    const count = state.score.tracks.filter(hasChangeableSound).length;
+    toast(count ? `Sound: ${GUITAR_SOUNDS[value].label}` : 'This song has no guitar or ukulele tracks to change.');
   }
 
   function restoreAfterSoundChange() {
@@ -578,7 +632,8 @@
   /* ---------------------------------------------------------------------
      Loading files
   --------------------------------------------------------------------- */
-  const pending = { name: '', bytes: null, saveToLibrary: false, practice: null, songId: null };
+  // Describes the song that is being handed to alphaTab; read again when its scoreLoaded event arrives.
+  const pending = { key: null, name: '', bytes: null, saveToLibrary: false, practice: null, songId: null, tick: 0, scrollTop: 0, scrollLeft: 0, restoreScroll: false };
 
   function fmtTime(ms) {
     if (!isFinite(ms) || ms < 0) ms = 0;
@@ -593,49 +648,43 @@
   }
   function hideLoading() { els.loading.hidden = true; }
 
-  async function openFile(file) {
-    if (!file) return;
-    showLoading('Reading ' + file.name);
-    try {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      const id = await hashBytes(bytes, file.name);
-      const existing = await dbGet(id).catch(() => null);
-      pending.name = file.name;
-      pending.bytes = bytes;
-      pending.songId = id;
-      pending.saveToLibrary = true;
-      pending.practice = existing && existing.practice ? existing.practice : null;
-      state.isDemo = false;
-      loadBytes(bytes, file.name);
-    } catch (e) {
-      hideLoading();
-      toast('Could not read the file.', true);
-    }
+  function fileExtension(name) {
+    const m = /\.([^.]+)$/.exec(name || '');
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  function isMuseScoreFile(name) {
+    return !!window.ScoreMuseScore && window.ScoreMuseScore.isMuseScoreName(name);
   }
 
   // Drop anything that still points at the previous song before a new one is loaded.
   function resetForNewScore() {
     const api = state.api;
     if (!api) return;
+    // Set first: clearing the range below fires playbackRangeChanged, which must not save over the old song.
+    state.awaitMidi = true;
+    state.awaitRender = true;
+    state.rehighlightAfterRender = false;
     neutralizeHighlight();
     api.playbackRange = null;
     setLoop(false, true);
     lastBarTick = -1;
     lastTempo = { original: 0, modified: 0 };
-    state.awaitMidi = true;
-    state.awaitRender = true;
-    state.rehighlightAfterRender = false;
   }
 
   // Tracks to render right away (saved practice state or the first track), so the first render is the final one.
-  function initialTrackIndexes() {
+  function initialTrackIndexes(score) {
     const p = pending.practice;
-    if (p && Array.isArray(p.visible) && p.visible.length) return p.visible.slice().sort((a, b) => a - b);
+    const count = score ? score.tracks.length : Infinity;
+    if (p && Array.isArray(p.visible) && p.visible.length) {
+      const wanted = p.visible.filter((i) => i < count).sort((a, b) => a - b);
+      if (wanted.length) return wanted;
+    }
     return [0];
   }
 
-  // Parse on the main thread first so the text encoding can be picked before alphaTab renders anything.
+  // Guitar Pro and MusicXML: parse on the main thread first so the text encoding can be picked before
+  // alphaTab renders anything. Returns null when no importer understands the bytes.
   function parseScore(bytes, name) {
     const api = state.api;
     const importer = api.settings.importer;
@@ -655,49 +704,94 @@
     return score;
   }
 
-  function loadBytes(bytes, name) {
-    showLoading('Opening ' + name);
-    state.fileName = name;
-    resetForNewScore();
-    const score = parseScore(bytes, name);
-    let ok = false;
-    try {
-      ok = state.api.load(score || bytes, initialTrackIndexes());
-    } catch (e) {
-      console.error('[Score] could not open', name, e);
-      hideLoading();
-      toast(score ? 'Something went wrong while opening this file.' : 'This file type is not supported.', true);
-      return;
+  // MuseScore files are translated to MusicXML in the browser (js/musescore.js), then read by alphaTab.
+  async function parseMuseScore(bytes, name) {
+    const xml = await window.ScoreMuseScore.toMusicXml(bytes, name);   // throws with a message for the user
+    const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new TextEncoder().encode(xml), state.api.settings);
+    for (const track of score.tracks) {
+      for (const staff of track.staves) {
+        // MusicXML puts the string count in staff-lines, which alphaTab also uses for the notation staff.
+        if (!staff.isPercussion && staff.tuning && staff.tuning.length) staff.standardNotationLineCount = 5;
+      }
     }
-    if (!ok) {
-      hideLoading();
-      toast('This file type is not supported.', true);
-    }
+    return score;
   }
 
-  function openLibrarySong(record) {
-    // The library stores an ArrayBuffer; everything else in Score works with a Uint8Array view of it.
-    const bytes = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
-    pending.name = record.name;
-    pending.bytes = bytes;
-    pending.songId = record.id;
-    pending.saveToLibrary = true;
-    pending.practice = record.practice || null;
-    state.isDemo = false;
-    loadBytes(bytes, record.name);
+  // Multi-line credits (common in Guitar Pro files) are drawn as one line by alphaTab and overlap.
+  function tidyScoreText(score) {
+    for (const key of ['title', 'subTitle', 'artist', 'album', 'words', 'music', 'wordsAndMusic', 'copyright', 'copyright2', 'tab', 'instructions', 'notices']) {
+      const value = score[key];
+      if (typeof value === 'string' && /[\r\n]/.test(value)) {
+        score[key] = value.split(/\s*[\r\n]+\s*/).filter(Boolean).join(' · ');
+      }
+    }
+    return score;
+  }
+
+  async function parseSong(bytes, name) {
+    const score = isMuseScoreFile(name) ? await parseMuseScore(bytes, name) : parseScore(bytes, name);
+    return score ? tidyScoreText(score) : null;
+  }
+
+  // Hands one tab's song to alphaTab. Parsed songs are kept on the tab, so switching back is instant.
+  async function loadTabSong(tab) {
+    const token = ++state.loadToken;
+    pending.key = tab.key;
+    pending.name = tab.name;
+    pending.bytes = tab.bytes;
+    pending.songId = tab.isDemo ? null : tab.key;
+    pending.saveToLibrary = !tab.isDemo;
+    pending.practice = tab.practice || null;
+    pending.tick = tab.tick || 0;
+    pending.scrollTop = tab.scrollTop || 0;
+    pending.scrollLeft = tab.scrollLeft || 0;
+    pending.restoreScroll = true;
+    showLoading('Opening ' + tabLabel(tab));
+
+    let score = tab.score;
+    if (!score && !tab.isDemo) {
+      let problem = '';
+      try {
+        score = await parseSong(tab.bytes, tab.name);
+        if (!score) problem = 'This file type is not supported.';
+      } catch (e) {
+        console.warn('[Score] could not read', tab.name, e && e.message ? e.message : e);
+        problem = e && e.message ? e.message : 'This file could not be read.';
+        score = null;
+      }
+      if (token !== state.loadToken) return;   // another tab was picked in the meantime
+      if (!score) { failTab(tab, problem); return; }
+    }
+
+    state.fileName = tab.name;
+    state.isDemo = !!tab.isDemo;
+    resetForNewScore();
+    useBarsPerRow(pending.practice && pending.practice.barsPerRow);
+    try {
+      if (score) state.api.load(score, initialTrackIndexes(score));
+      else state.api.tex(DEMO_TEX);
+    } catch (e) {
+      console.error('[Score] could not open', tab.name, e);
+      failTab(tab, 'Something went wrong while opening this file.');
+    }
   }
 
   function openDemo() {
-    pending.name = 'Demo Riff';
-    pending.bytes = null;
-    pending.songId = null;
-    pending.saveToLibrary = false;
-    pending.practice = null;
-    state.isDemo = true;
-    state.fileName = 'Demo Riff';
-    showLoading('Opening demo');
-    resetForNewScore();
-    state.api.tex(DEMO_TEX);
+    let tab = findTab(DEMO_KEY);
+    if (!tab) {
+      tab = newTab({ key: DEMO_KEY, name: 'Demo Riff', title: 'Demo Riff', isDemo: true });
+      tabs.push(tab);
+    }
+    activateTab(tab.key);
+  }
+
+  function openLibrarySong(record) {
+    let tab = findTab(record.id);
+    if (!tab) {
+      tab = tabFromRecord(record);
+      tabs.push(tab);
+    }
+    activateTab(tab.key);
   }
 
   // Guitar Pro 3 to 5 files are decoded as Windows-1252 (what Guitar Pro writes). Files written by other
@@ -713,6 +807,7 @@
     applyGuitarSound(score);
     state.score = score;
     state.songId = pending.songId;
+    state.loadedKey = pending.key;
     state.loads++;
     app.classList.remove('no-song');
 
@@ -780,19 +875,342 @@
       }, true).catch(() => { /* storage may be unavailable */ });
     }
 
-    // Remember recently used file name for the title hint
-    toast(`Loaded ${title}: ${score.tracks.length} track${score.tracks.length === 1 ? '' : 's'}, ${score.masterBars.length} bars`);
+    // Keep the parsed song on its tab for instant switching
+    const tab = findTab(pending.key);
+    let firstTime = true;
+    if (tab) {
+      firstTime = !tab.shown;
+      tab.shown = true;
+      tab.score = score;
+      tab.title = score.title || '';
+      tab.artist = score.artist || '';
+      tab.lastUsed = Date.now();
+      pruneScoreCache();
+      renderTabBar();
+    }
+    if (firstTime) toast(`Loaded ${title}: ${score.tracks.length} track${score.tracks.length === 1 ? '' : 's'}, ${score.masterBars.length} bars`);
   }
 
   // Applied once the new score is both rendered (bounds exist) and its midi is ready (tick cache exists)
   function maybeApplyPractice() {
     if (state.awaitMidi || state.awaitRender) return;
     const practice = pending.practice;
+    const tick = pending.tick;
+    const scroll = pending.restoreScroll ? { top: pending.scrollTop, left: pending.scrollLeft } : null;
     pending.practice = null;
-    if (!practice || !state.score) return;
-    if (practice.loopStart && practice.loopEnd) {
+    pending.tick = 0;
+    pending.scrollTop = 0;
+    pending.scrollLeft = 0;
+    pending.restoreScroll = false;
+    if (!state.score) return;
+    if (practice && practice.loopStart && practice.loopEnd) {
       setLoopBars(practice.loopStart, practice.loopEnd, false);
     }
+    if (tick > 0) {
+      try { state.api.tickPosition = tick; } catch (e) { /* the position is a convenience only */ }
+    }
+    if (scroll) {
+      // A new song starts at the top (with its title), a tab you come back to where you left it.
+      // alphaTab may still be easing towards its cursor, so the position is set once more after that.
+      const token = state.loadToken;
+      const apply = () => {
+        if (token !== state.loadToken || app.classList.contains('playing')) return;
+        els.viewport.scrollTop = scroll.top;
+        els.viewport.scrollLeft = scroll.left;
+      };
+      apply();
+      setTimeout(apply, 450);
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     Tabs: every opened song gets a tab above the sheet. Each tab keeps its own speed, loop, mix,
+     bars per row, position and scroll, and the open tabs come back on the next visit.
+  --------------------------------------------------------------------- */
+  const tabs = [];
+  let activeKey = null;
+
+  function findTab(key) {
+    return key ? tabs.find((t) => t.key === key) || null : null;
+  }
+
+  function newTab(fields) {
+    return Object.assign({
+      key: null, name: '', title: '', artist: '', bytes: null, score: null, practice: null,
+      tick: 0, scrollTop: 0, scrollLeft: 0, isDemo: false, shown: false, lastUsed: 0,
+    }, fields);
+  }
+
+  function tabFromRecord(record) {
+    // The library stores an ArrayBuffer; everything else in Score works with a Uint8Array view of it.
+    const bytes = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
+    return newTab({
+      key: record.id, name: record.name, title: record.title || '', artist: record.artist || '',
+      bytes, practice: record.practice || null,
+    });
+  }
+
+  function tabLabel(tab) {
+    return tab.title || (tab.name || '').replace(/\.[^.]+$/, '') || 'Untitled';
+  }
+
+  function tabFormat(tab) {
+    if (tab.isDemo) return 'DEMO';
+    const ext = fileExtension(tab.name);
+    return ext === 'musicxml' ? 'XML' : ext.toUpperCase();
+  }
+
+  function currentPractice() {
+    return {
+      speed: state.speed,
+      loopStart: state.loopStartBar,
+      loopEnd: state.loopEndBar,
+      visible: [...state.visible],
+      mute: [...state.mute],
+      solo: [...state.solo],
+      volume: Object.fromEntries([...state.volume.entries()]),
+      barsPerRow: state.barsPerRow,
+    };
+  }
+
+  // Remembers where the song on screen was left, so its tab opens exactly there again.
+  function snapshotLoadedTab() {
+    const tab = findTab(state.loadedKey);
+    if (!tab || !state.score || !state.api) return;
+    if (state.awaitMidi || state.awaitRender) return;   // still loading: its stored state was never applied
+    tab.practice = currentPractice();
+    try { tab.tick = state.api.tickPosition || 0; } catch (e) { tab.tick = 0; }
+    tab.scrollTop = els.viewport.scrollTop;
+    tab.scrollLeft = els.viewport.scrollLeft;
+  }
+
+  async function activateTab(key) {
+    const tab = findTab(key);
+    if (!tab) return;
+    if (key === state.loadedKey && state.score) {
+      state.loadToken++;   // a slower load of another tab must not replace this one
+      activeKey = key;
+      hideLoading();
+      renderTabBar();
+      persistTabs();
+      return;
+    }
+    flushPracticeSave();
+    snapshotLoadedTab();
+    if (state.api && state.score) { try { state.api.stop(); } catch (e) { /* ignore */ } }
+    activeKey = key;
+    tab.lastUsed = Date.now();
+    renderTabBar();
+    persistTabs();
+    await loadTabSong(tab);
+  }
+
+  function closeTab(key) {
+    const index = tabs.findIndex((t) => t.key === key);
+    if (index < 0) return;
+    if (key === state.loadedKey) flushPracticeSave();
+    tabs.splice(index, 1);
+    if (key === activeKey) {
+      activeKey = null;
+      const next = tabs[index] || tabs[index - 1];
+      if (next) activateTab(next.key);
+      else showEmptyState();
+    }
+    renderTabBar();
+    persistTabs();
+  }
+
+  function cycleTab(step) {
+    if (tabs.length < 2) return;
+    const index = Math.max(0, tabs.findIndex((t) => t.key === activeKey));
+    activateTab(tabs[(index + step + tabs.length) % tabs.length].key);
+  }
+
+  // A song that cannot be opened loses its tab, and the song that was showing before stays on screen.
+  function failTab(tab, message) {
+    hideLoading();
+    toast(message || 'This file could not be opened.', true);
+    const index = tabs.indexOf(tab);
+    if (index >= 0) tabs.splice(index, 1);
+    if (!tab.isDemo && tab.key) {
+      // Files that never opened do not belong in the library
+      dbGet(tab.key).then((rec) => { if (rec && !rec.bars) return dbDelete(tab.key); }).catch(() => {});
+    }
+    activeKey = findTab(state.loadedKey) ? state.loadedKey : null;
+    if (!activeKey) {
+      if (tabs.length) activateTab(tabs[Math.min(index, tabs.length - 1)].key);
+      else showEmptyState();
+    }
+    renderTabBar();
+    persistTabs();
+  }
+
+  function showEmptyState() {
+    state.loadToken++;   // drop a load that is still running
+    flushPracticeSave();
+    state.songId = null;  // before the range is cleared below, so nothing is saved over the closed song
+    if (state.api) {
+      try { state.api.stop(); } catch (e) { /* ignore */ }
+      neutralizeHighlight();
+      try { state.api.playbackRange = null; } catch (e) { /* ignore */ }
+    }
+    state.score = null;
+    state.loadedKey = null;
+    state.isDemo = false;
+    state.fileName = '';
+    pending.key = null;
+    pending.practice = null;
+    state.loopStartBar = null;
+    state.loopEndBar = null;
+    setLoop(false, true);
+    app.classList.add('no-song');
+    app.classList.remove('playing');
+    els.songMeta.hidden = true;
+    document.title = 'Score';
+    els.trackList.innerHTML = '';
+    els.loopStart.value = '';
+    els.loopEnd.value = '';
+    els.barIndicator.textContent = 'Bar -';
+    els.progress.value = 0;
+    els.timeCurrent.textContent = '0:00';
+    els.timeTotal.textContent = '0:00';
+    els.bpmValue.textContent = '';
+    hideLoading();
+    updatePlayEnabled();
+  }
+
+  // Parsed songs take memory; keep only the most recently used ones (the others are parsed again on demand).
+  function pruneScoreCache() {
+    const cached = tabs.filter((t) => t.score && t.key !== state.loadedKey).sort((a, b) => b.lastUsed - a.lastUsed);
+    cached.slice(MAX_CACHED_SCORES - 1).forEach((t) => { t.score = null; });
+  }
+
+  function persistTabs() {
+    settings.openTabs = tabs.map((t) => t.key);
+    settings.activeTab = activeKey;
+    saveSettings();
+  }
+
+  function renderTabBar() {
+    els.tabBar.hidden = tabs.length === 0;
+    app.classList.toggle('has-tabs', tabs.length > 0);
+    els.tabList.innerHTML = '';
+    for (const tab of tabs) {
+      const active = tab.key === activeKey;
+      const el = document.createElement('div');
+      el.className = 'tab' + (active ? ' active' : '');
+      el.setAttribute('role', 'tab');
+      el.setAttribute('aria-selected', active ? 'true' : 'false');
+      el.tabIndex = 0;
+      el.dataset.key = tab.key;
+      el.title = tabLabel(tab) + (tab.artist ? ' by ' + tab.artist : '') + (tab.isDemo ? '' : '\n' + tab.name);
+
+      const fmt = document.createElement('span');
+      fmt.className = 'tab-fmt';
+      fmt.textContent = tabFormat(tab);
+      const label = document.createElement('span');
+      label.className = 'tab-title';
+      label.textContent = tabLabel(tab);
+      const close = document.createElement('button');
+      close.className = 'tab-close';
+      close.type = 'button';
+      close.tabIndex = -1;
+      close.title = 'Close tab';
+      close.setAttribute('aria-label', 'Close ' + tabLabel(tab));
+      close.innerHTML = '&times;';
+      close.addEventListener('click', (e) => { e.stopPropagation(); closeTab(tab.key); });
+
+      el.addEventListener('click', () => activateTab(tab.key));
+      el.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); closeTab(tab.key); } });
+      el.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });   // no autoscroll on middle click
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); activateTab(tab.key); }
+        else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); closeTab(tab.key); }
+      });
+      el.append(fmt, label, close);
+      els.tabList.appendChild(el);
+    }
+    const current = els.tabList.querySelector('.tab.active');
+    if (current) {
+      const list = els.tabList;
+      if (current.offsetLeft < list.scrollLeft) list.scrollLeft = current.offsetLeft - 8;
+      else if (current.offsetLeft + current.offsetWidth > list.scrollLeft + list.clientWidth) {
+        list.scrollLeft = current.offsetLeft + current.offsetWidth - list.clientWidth + 8;
+      }
+    }
+  }
+
+  // Reads picked or dropped files into tabs (a file that is already open just gets its tab back).
+  async function addFileTab(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const id = await hashBytes(bytes, file.name);
+    const open = findTab(id);
+    if (open) return open;
+    const existing = await dbGet(id).catch(() => null);
+    // The same file name with new content (after editing it in Guitar Pro or MuseScore) replaces its old tab.
+    let tab = tabs.find((t) => !t.isDemo && t.name.toLowerCase() === file.name.toLowerCase());
+    if (tab) {
+      if (tab.key === state.loadedKey) { snapshotLoadedTab(); state.loadedKey = null; }
+      tab.key = id;
+      tab.bytes = bytes;
+      tab.score = null;
+      tab.shown = false;
+      if (!tab.practice && existing && existing.practice) tab.practice = existing.practice;
+    } else {
+      tab = newTab({
+        key: id, name: file.name, bytes,
+        title: existing ? existing.title || '' : '',
+        artist: existing ? existing.artist || '' : '',
+        practice: existing && existing.practice ? existing.practice : null,
+      });
+      tabs.push(tab);
+    }
+    // In the library right away, so the tab comes back after a reload even if it was never opened.
+    await dbPut({
+      id, name: file.name, title: tab.title, artist: tab.artist, size: bytes.byteLength,
+      added: Date.now(), opened: Date.now(), data: bytes.slice().buffer, practice: tab.practice,
+    }, true).catch(() => { /* storage may be unavailable */ });
+    return tab;
+  }
+
+  async function openFiles(files) {
+    let first = null;
+    for (const file of files) {
+      showLoading('Reading ' + file.name);
+      try {
+        const tab = await addFileTab(file);
+        if (!first) first = tab;
+      } catch (e) {
+        toast('Could not read ' + file.name, true);
+      }
+    }
+    hideLoading();
+    renderTabBar();
+    persistTabs();
+    if (first) {
+      activateTab(first.key);
+      if (files.length > 1) setTimeout(() => toast(`${files.length} files open as tabs. Switch with Shift + arrow keys.`), 1200);
+    }
+  }
+
+  // Brings back the tabs of the last visit (from the library, so this also works offline).
+  async function restoreTabs() {
+    const keys = Array.isArray(settings.openTabs) ? settings.openTabs.slice(0, 40) : [];
+    if (!keys.length) return;
+    for (const key of keys) {
+      if (findTab(key)) continue;
+      if (key === DEMO_KEY) {
+        tabs.push(newTab({ key: DEMO_KEY, name: 'Demo Riff', title: 'Demo Riff', isDemo: true }));
+        continue;
+      }
+      const record = await dbGet(key).catch(() => null);
+      if (record && record.data) tabs.push(tabFromRecord(record));
+    }
+    if (activeKey) { renderTabBar(); persistTabs(); return; }   // the user already opened something meanwhile
+    renderTabBar();
+    const first = findTab(settings.activeTab) || tabs[0];
+    if (first) activateTab(first.key);
+    else persistTabs();
   }
 
   /* ---------------------------------------------------------------------
@@ -885,6 +1303,7 @@
     const info = track.playbackInfo;
     if (!info) return '';
     if (info.primaryChannel === 9) return 'drums';
+    if (info.bank === UKULELE_BANK || info.bank === UKULELE_GUITAR_BANK) return 'ukulele';
     const names = GM_NAMES;
     const n = names[info.program];
     return n ? n : '';
@@ -1178,6 +1597,7 @@
     settings.layout = value;
     app.classList.toggle('layout-horizontal', value === 'horizontal');
     document.querySelectorAll('#segLayout button').forEach((b) => b.classList.toggle('active', b.dataset.value === value));
+    showBarsPerRow();
     if (state.api) {
       state.api.settings.display.layoutMode = layoutModeFor(value);
       state.api.updateSettings();
@@ -1198,6 +1618,48 @@
     saveSettings();
   }
 
+  // Bars per row: Auto (-1) lets alphaTab fit the width; a number fixes every row of the page layout.
+  // The choice is stored with each song, because only busy songs need fewer bars per row.
+  const BARS_CHOICES = [-1, 1, 2, 3, 4, 5, 6];
+
+  function normalizeBars(value) {
+    const n = Number(value);
+    return BARS_CHOICES.includes(n) ? n : -1;
+  }
+
+  function showBarsPerRow() {
+    const horizontal = settings.layout === 'horizontal';
+    els.segBars.classList.toggle('disabled', horizontal);
+    els.segBars.title = horizontal ? 'Bars per row applies to the Page layout' : '';
+    els.segBars.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.value) === state.barsPerRow);
+      b.disabled = horizontal;
+    });
+  }
+
+  // Sets the value without drawing; the next render uses it.
+  function useBarsPerRow(value) {
+    state.barsPerRow = normalizeBars(value);
+    showBarsPerRow();
+    if (state.api) {
+      state.api.settings.display.barsPerRow = state.barsPerRow;
+      state.api.updateSettings();
+    }
+  }
+
+  function setBarsPerRow(value) {
+    const before = state.barsPerRow;
+    useBarsPerRow(value);
+    if (state.barsPerRow === before) return;
+    if (state.score && settings.layout === 'page') {
+      // the loop highlight belongs to the old layout: park it and draw it again afterwards
+      if (state.loopStartBar) { neutralizeHighlight(); state.rehighlightAfterRender = true; }
+      state.api.render();
+    }
+    schedulePracticeSave();
+    toast(state.barsPerRow > 0 ? `${state.barsPerRow} bar${state.barsPerRow === 1 ? '' : 's'} per row` : 'Bars per row: Auto');
+  }
+
   function setMasterVolume(v) {
     settings.masterVolume = v;
     if (state.api) state.api.masterVolume = v;
@@ -1214,25 +1676,30 @@
   /* ---------------------------------------------------------------------
      Per-song practice memory (speed, loop, mix) stored in the library
   --------------------------------------------------------------------- */
+  // While a song is loading, the state on screen is half old and half new, so nothing is saved then.
   function schedulePracticeSave() {
-    if (!state.songId) return;
+    if (!state.songId || state.awaitMidi || state.awaitRender) return;
     clearTimeout(state.practiceSaveTimer);
     state.practiceSaveTimer = setTimeout(savePractice, 600);
   }
 
+  // Saves a pending change right now (before switching tabs or closing one).
+  function flushPracticeSave() {
+    if (!state.practiceSaveTimer) return;
+    clearTimeout(state.practiceSaveTimer);
+    state.practiceSaveTimer = null;
+    savePractice();
+  }
+
   async function savePractice() {
-    if (!state.songId) return;
-    const practice = {
-      speed: state.speed,
-      loopStart: state.loopStartBar,
-      loopEnd: state.loopEndBar,
-      visible: [...state.visible],
-      mute: [...state.mute],
-      solo: [...state.solo],
-      volume: Object.fromEntries([...state.volume.entries()]),
-    };
+    state.practiceSaveTimer = null;
+    if (!state.songId || state.awaitMidi || state.awaitRender) return;
+    const songId = state.songId;
+    const practice = currentPractice();
+    const tab = findTab(songId);
+    if (tab) tab.practice = practice;
     try {
-      const rec = await dbGet(state.songId);
+      const rec = await dbGet(songId);
       if (rec) {
         rec.practice = practice;
         rec.opened = Date.now();
@@ -1278,6 +1745,9 @@
       if (existing) {
         record.added = existing.added || record.added;
         if (!record.practice && existing.practice) record.practice = existing.practice;
+        for (const key of ['title', 'artist', 'tracks', 'bars']) {
+          if (!record[key] && existing[key]) record[key] = existing[key];
+        }
       }
     }
     return tx('readwrite', (s) => s.put(record));
@@ -1312,6 +1782,12 @@
       const title = document.createElement('div');
       title.className = 'li-title';
       title.textContent = rec.title || rec.name;
+      if (findTab(rec.id)) {
+        const badge = document.createElement('span');
+        badge.className = 'li-open';
+        badge.textContent = rec.id === activeKey ? 'showing' : 'open in a tab';
+        title.appendChild(badge);
+      }
       const sub = document.createElement('div');
       sub.className = 'li-sub';
       const parts = [];
@@ -1328,6 +1804,11 @@
       del.innerHTML = '&times;';
       del.addEventListener('click', async (e) => {
         e.stopPropagation();
+        // Removing a song from this device also closes its tab
+        if (findTab(rec.id)) {
+          if (rec.id === state.loadedKey) { clearTimeout(state.practiceSaveTimer); state.practiceSaveTimer = null; state.songId = null; }
+          closeTab(rec.id);
+        }
         await dbDelete(rec.id).catch(() => {});
         renderLibrary();
       });
@@ -1344,31 +1825,22 @@
      Drag and drop + file picker
   --------------------------------------------------------------------- */
   function isSupportedName(name) {
-    return /\.(gp|gpx|gp3|gp4|gp5|xml|musicxml|mxl|capx)$/i.test(name || '');
+    return /\.(gp|gpx|gp3|gp4|gp5|mscz|mscx|xml|musicxml|mxl|capx)$/i.test(name || '');
   }
 
+  // Every supported file opens in its own tab; the first one is shown.
   async function handleFiles(fileList) {
-    const files = [...fileList].filter((f) => isSupportedName(f.name));
+    const all = [...fileList];
+    const files = all.filter((f) => isSupportedName(f.name));
     if (!files.length) {
-      toast('Drop a Guitar Pro file (.gp, .gpx, .gp3, .gp4, .gp5).', true);
+      toast('Drop a Guitar Pro file (.gp, .gpx, .gp3, .gp4, .gp5) or a MuseScore file (.mscz, .mscx).', true);
       return;
     }
-    await openFile(files[0]);
-    if (files.length > 1) {
-      let added = 0;
-      for (const f of files.slice(1)) {
-        try {
-          const bytes = new Uint8Array(await f.arrayBuffer());
-          const id = await hashBytes(bytes, f.name);
-          await dbPut({
-            id, name: f.name, title: '', artist: '', size: bytes.byteLength,
-            added: Date.now(), opened: 0, data: bytes.buffer, practice: null,
-          }, true);
-          added++;
-        } catch (e) { /* skip */ }
-      }
-      if (added) toast(`${added} more file${added === 1 ? '' : 's'} added to the library.`);
+    if (files.length < all.length) {
+      const skipped = all.length - files.length;
+      setTimeout(() => toast(`${skipped} file${skipped === 1 ? ' was' : 's were'} skipped (not a Guitar Pro, MuseScore or MusicXML file).`, true), 2800);
     }
+    await openFiles(files);
   }
 
   document.addEventListener('dragenter', (e) => {
@@ -1410,8 +1882,11 @@
   if ('launchQueue' in window && window.launchQueue && window.launchQueue.setConsumer) {
     window.launchQueue.setConsumer(async (params) => {
       if (!params.files || !params.files.length) return;
-      const file = await params.files[0].getFile();
-      openFile(file);
+      const files = [];
+      for (const handle of params.files) {
+        try { files.push(await handle.getFile()); } catch (e) { /* skip */ }
+      }
+      if (files.length) handleFiles(files);
     });
   }
 
@@ -1474,6 +1949,13 @@
 
   document.querySelectorAll('#segNotation button').forEach((b) => b.addEventListener('click', () => setNotation(b.dataset.value)));
   document.querySelectorAll('#segLayout button').forEach((b) => b.addEventListener('click', () => setLayout(b.dataset.value)));
+  els.segBars.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setBarsPerRow(b.dataset.value)));
+  $('btnTabAdd').addEventListener('click', () => els.fileInput.click());
+  els.tabList.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || els.tabList.scrollWidth <= els.tabList.clientWidth) return;
+    e.preventDefault();
+    els.tabList.scrollLeft += e.deltaY;
+  }, { passive: false });
   $('btnZoomIn').addEventListener('click', () => setZoom(settings.zoom + 0.1));
   $('btnZoomOut').addEventListener('click', () => setZoom(settings.zoom - 0.1));
 
@@ -1505,6 +1987,11 @@
       return;
     }
     if (typing || dialogOpen || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      cycleTab(e.key === 'ArrowLeft' ? -1 : 1);
+      return;
+    }
 
     switch (e.key) {
       case ' ': e.preventDefault(); playPause(); break;
@@ -1644,8 +2131,10 @@
     els.btnCountIn.setAttribute('aria-pressed', settings.countIn ? 'true' : 'false');
     els.speedValue.textContent = '100%';
 
+    if (!GUITAR_SOUNDS[settings.guitarSound]) settings.guitarSound = 'original';
     document.querySelectorAll('#segSound button').forEach((b) => b.classList.toggle('active', b.dataset.value === settings.guitarSound));
     els.btnReverb.setAttribute('aria-pressed', settings.reverb ? 'true' : 'false');
+    showBarsPerRow();
 
     if (typeof alphaTab === 'undefined') {
       toast('alphaTab failed to load. Serve Score over http(s), not from file://', true);
@@ -1655,6 +2144,7 @@
     createApi();
     updatePlayEnabled();
     loadSounds();
+    restoreTabs().catch((e) => console.warn('[Score] open tabs could not be restored', e));
     console.info('[Score] v' + APP_VERSION + ' using alphaTab ' + (alphaTab.meta ? alphaTab.meta.version : ''));
   }
 
@@ -1664,6 +2154,9 @@
   window.Score = {
     get api() { return state.api; },
     get state() { return state; },
-    setLoopBars, clearLoop, setSpeed, openDemo, setGuitarSound, setReverb, fx, version: APP_VERSION,
+    get tabs() { return tabs; },
+    get activeTab() { return activeKey; },
+    setLoopBars, clearLoop, setSpeed, openDemo, setGuitarSound, setReverb, setBarsPerRow, activateTab, closeTab, cycleTab,
+    fx, version: APP_VERSION,
   };
 })();

@@ -14,6 +14,7 @@ Place these next to the scripts, with these folder names:
 | `GeneralUser-GS/` | https://github.com/mrbumpy409/GeneralUser-GS |
 | `scoredit-sounds/` | https://github.com/hikashop-nicolas/scoredit-sounds (MuseScore_General split into one file per instrument) |
 | `clean-small/` | The file `EGuitarFSBS-clean-bridge-small-SF2-20260807.7z` from the releases of https://github.com/freepats/electric-guitar-FSBS-clean, unpacked |
+| `ukulele1/` | The FreePats Ukulele, version 2026-08-11 (http://freepats.zenvoid.org/), unpacked: `README.txt`, `Ukulele 20260811.sfz` and `samples/` |
 
 ## Build
 
@@ -30,3 +31,5 @@ python3 build_bank.py score.sf3
 - The electric guitar is 7 dB louder than its neighbours as recorded, so it is turned down by that much.
 - Samples of 8192 frames or more are stored as Ogg Vorbis. Shorter ones stay uncompressed so that very short loops stay clean.
 - The sample data is padded to an even length, because alphaTab does not skip RIFF pad bytes.
+- General MIDI has no ukulele, so the ukulele is added on program 24 in two extra banks. Bank 8 plays every note at its real pitch, for ukulele parts. Bank 9 moves notes below middle C up by whole octaves (the sample's root key is lowered instead of stretching it), so a guitar part played on it still sounds like a ukulele. Score picks the bank itself.
+- `--uke-atten` turns the ukulele down by the given number of centibels if it ever needs to be balanced again. The shipped bank uses 0: it measures within half a decibel of the nylon guitar.

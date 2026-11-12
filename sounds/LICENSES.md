@@ -1,14 +1,15 @@
 # Sound bank licences
 
-`score.sf3` is assembled for Score from three freely licensed sources. Only the instruments named below were taken from each. Samples are stored as Ogg Vorbis inside the SoundFont (the SF3 layout). The build script is in `tools/soundbank/`.
+`score.sf3` is assembled for Score from four freely licensed sources. Only the instruments named below were taken from each. Samples are stored as Ogg Vorbis inside the SoundFont (the SF3 layout). The build script is in `tools/soundbank/`.
 
 | Part of the bank | Source | Licence |
 |---|---|---|
 | Clean electric guitar (program 27) | FreePats "FSBS Electric Guitar Clean", bridge pickup, small set, version 2026-08-07 (github.com/freepats/electric-guitar-FSBS-clean) | CC0 1.0 public domain dedication |
+| Ukulele (bank 8 and bank 9, program 24) | FreePats "Ukulele", version 2026-08-11, recorded by Mateusz Dąbrowski from a Flight Fireball tenor ukulele (freepats.zenvoid.org) | CC0 1.0 public domain dedication |
 | Nylon, steel, jazz, muted, overdrive and distortion guitars, guitar harmonics (24 to 26, 28 to 31), all basses (32 to 39), standard drum kit | MuseScore_General 0.2 by S. Christian Collins, based on FluidR3 by Frank Wen and FluidR3Mono by Michael Cowgill | MIT (full text below) |
 | Every other General MIDI instrument and the other drum kits | GeneralUser GS 2.0.3 by S. Christian Collins (schristiancollins.com) | GeneralUser GS License v2.0 (full text below) |
 
-Changes made for Score: stereo flags removed, sample start offsets baked into the audio, attenuation values scaled by 0.4 to match how the alphaTab synthesizer reads them, electric guitar level reduced by 7 dB, longer samples compressed with Ogg Vorbis.
+Changes made for Score: stereo flags removed, sample start offsets baked into the audio, attenuation values scaled by 0.4 to match how the alphaTab synthesizer reads them, electric guitar level reduced by 7 dB, longer samples compressed with Ogg Vorbis. The ukulele's 13 pitched recordings were converted to 16-bit and mapped like the original SFZ file; its two percussive samples (body tap and chuck) are not used. The second ukulele preset plays notes below middle C an octave or two higher, so guitar parts stay inside the ukulele's range.
 
 ---
 

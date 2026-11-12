@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Score</title>
-<meta name="description" content="Score: an offline Guitar Pro player. Drop a .gp, .gpx, .gp3, .gp4 or .gp5 file, slow it down, loop a section, mute or solo tracks. No login, no upload, no AI.">
+<meta name="description" content="Score: an offline Guitar Pro and MuseScore player. Drop a .gp, .gpx, .gp3, .gp4, .gp5, .mscz or .mscx file, slow it down, loop a section, mute or solo tracks. No login, no upload, no AI.">
 <meta name="theme-color" content="#0b0f14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Score, the Guitar Pro player that helps you practice">
-<meta property="og:description" content="Open any Guitar Pro file in the browser. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta property="og:description" content="Open Guitar Pro and MuseScore files in the browser. Slow them down, loop a section, mute or solo tracks. No account, works offline.">
 <meta property="og:image" content="https://rohittabs.github.io/score/icon-512.png">
 <meta property="og:url" content="https://rohittabs.github.io/score/">
 <link rel="stylesheet" href="css/score.css">
@@ -35,7 +35,7 @@
       <span class="song-artist" id="songArtist"></span>
     </div>
     <div class="topbar-actions">
-      <button class="btn" id="btnOpen" title="Open a Guitar Pro file (O)">
+      <button class="btn" id="btnOpen" title="Open Guitar Pro or MuseScore files (O)">
         <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <span>Open</span>
       </button>
@@ -55,6 +55,14 @@
     </div>
   </header>
 
+  <!-- Open songs, one tab each -->
+  <nav class="tabbar" id="tabBar" aria-label="Open songs" hidden>
+    <div class="tab-list" id="tabList" role="tablist"></div>
+    <button class="tab-add" id="btnTabAdd" type="button" title="Open another file (O)" aria-label="Open another file">
+      <svg viewBox="0 0 20 20" width="16" height="16"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </nav>
+
   <!-- Main area -->
   <div class="main">
 
@@ -63,12 +71,13 @@
       <section class="panel">
         <h2>Guitar sound</h2>
         <div class="seg" id="segSound" role="group" aria-label="Guitar sound">
-          <button data-value="original" class="active" title="Play every track with the instrument written in the file">Original</button>
+          <button data-value="original" class="active" title="Play every track with the instrument written in the file (ukulele parts on a ukulele)">Original</button>
           <button data-value="acoustic" title="Steel string acoustic guitar">Acoustic</button>
           <button data-value="electric" title="Clean electric guitar">Electric</button>
           <button data-value="nylon" title="Nylon string classical guitar">Nylon</button>
+          <button data-value="ukulele" title="Ukulele (guitar parts move up into the ukulele's range)">Ukulele</button>
         </div>
-        <p class="hint">Changes every guitar track in the song. Bass, drums and other instruments stay as written.</p>
+        <p class="hint">Changes every guitar and ukulele track. Ukulele parts play on a real ukulele in Original. Bass, drums and other instruments stay as written.</p>
         <div class="row">
           <span class="row-label">Room</span>
           <button class="btn small toggle" id="btnReverb" aria-pressed="true" title="A little room reverb so the instruments do not sound dry">Reverb</button>
@@ -117,6 +126,17 @@
           <button data-value="page" class="active">Page</button>
           <button data-value="horizontal">Horizontal</button>
         </div>
+        <div class="field-label" id="barsLabel">Bars per row</div>
+        <div class="seg seg-bars" id="segBars" role="group" aria-labelledby="barsLabel">
+          <button data-value="-1" class="active" title="Fit as many bars as the width allows">Auto</button>
+          <button data-value="1" title="1 bar per row">1</button>
+          <button data-value="2" title="2 bars per row">2</button>
+          <button data-value="3" title="3 bars per row">3</button>
+          <button data-value="4" title="4 bars per row">4</button>
+          <button data-value="5" title="5 bars per row">5</button>
+          <button data-value="6" title="6 bars per row">6</button>
+        </div>
+        <p class="hint">Fewer bars per row gives busy bars more room. Remembered for each song.</p>
         <div class="row">
           <span class="row-label">Zoom</span>
           <button class="btn small" id="btnZoomOut">-</button>
@@ -127,7 +147,7 @@
 
       <section class="panel about">
         <p>Score runs entirely in your browser. Files never leave this device. Songs you open are kept in a local library so they work offline.</p>
-        <p class="muted">Rendering and playback by <a href="https://alphatab.net" target="_blank" rel="noopener">alphaTab</a>. Sounds from FreePats, MuseScore_General and GeneralUser GS (<a href="sounds/LICENSES.md" target="_blank" rel="noopener">licences</a>). Formats: .gp (GP7 and GP8), .gpx (GP6), .gp3, .gp4, .gp5, MusicXML, Capella.</p>
+        <p class="muted">Rendering and playback by <a href="https://alphatab.net" target="_blank" rel="noopener">alphaTab</a>. Sounds from FreePats, MuseScore_General and GeneralUser GS (<a href="sounds/LICENSES.md" target="_blank" rel="noopener">licences</a>). Formats: .gp (GP7 and GP8), .gpx (GP6), .gp3, .gp4, .gp5, .mscz and .mscx (MuseScore 3 and later), MusicXML, Capella.</p>
       </section>
     </aside>
 
@@ -143,13 +163,13 @@
       <div class="dropzone" id="dropzone">
         <div class="drop-inner">
           <img class="drop-logo" src="icon-192.png" width="84" height="84" alt="">
-          <h1>Drop a Guitar Pro file</h1>
-          <p>.gp, .gpx, .gp3, .gp4, .gp5 (and MusicXML)</p>
+          <h1>Drop a Guitar Pro or MuseScore file</h1>
+          <p>.gp, .gpx, .gp3, .gp4, .gp5, .mscz, .mscx (and MusicXML)</p>
           <div class="drop-buttons">
-            <button class="btn primary" id="btnOpen2">Choose a file</button>
+            <button class="btn primary" id="btnOpen2">Choose files</button>
             <button class="btn" id="btnDemo">Try the demo riff</button>
           </div>
-          <p class="muted small">No account. No upload. Works offline after the first visit.</p>
+          <p class="muted small">No account. No upload. Works offline after the first visit. Drop several files to open them as tabs.</p>
           <p class="small"><a href="slides.html">Take the two minute tour</a></p>
         </div>
       </div>
@@ -244,19 +264,21 @@
         <tr><td><kbd>-</kbd> / <kbd>+</kbd></td><td>Speed down / up by 5%</td></tr>
         <tr><td><kbd>0</kbd></td><td>Speed back to 100%</td></tr>
         <tr><td><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></td><td>Previous / next bar</td></tr>
-        <tr><td><kbd>O</kbd></td><td>Open a file</td></tr>
+        <tr><td><kbd>O</kbd></td><td>Open files (each one opens in a tab)</td></tr>
+        <tr><td><kbd>Shift</kbd> + <kbd>&larr;</kbd> / <kbd>&rarr;</kbd></td><td>Previous / next tab</td></tr>
         <tr><td><kbd>T</kbd></td><td>Show / hide the side panel</td></tr>
         <tr><td><kbd>?</kbd></td><td>This help</td></tr>
       </table>
-      <p class="muted small">Click a beat in the music to jump there. Drag across beats to select a loop range.</p>
+      <p class="muted small">Click a beat in the music to jump there. Drag across beats to select a loop range. Middle-click a tab, or press <kbd>Delete</kbd> on it, to close it.</p>
     </div>
   </dialog>
 
   <div class="toast" id="toast" hidden></div>
-  <input type="file" id="fileInput" accept=".gp,.gpx,.gp3,.gp4,.gp5,.xml,.musicxml,.mxl,.capx" hidden>
+  <input type="file" id="fileInput" accept=".gp,.gpx,.gp3,.gp4,.gp5,.mscz,.mscx,.xml,.musicxml,.mxl,.capx" multiple hidden>
 </div>
 
 <script src="vendor/alphatab/alphaTab.min.js"></script>
+<script src="js/musescore.js"></script>
 <script src="js/score.js"></script>
 </body>
 </html>

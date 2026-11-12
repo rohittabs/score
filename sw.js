@@ -2,8 +2,8 @@
    Bump CACHE_VERSION whenever any app file below changes.
    The sound bank lives in its own cache (SOUND_CACHE) so an app update never downloads it again.
    Only bump SOUND_CACHE (here and in js/score.js) when sounds/score.sf3 itself changes. */
-const CACHE_VERSION = 'score-v1.1.0';
-const SOUND_CACHE = 'score-sounds-v1';
+const CACHE_VERSION = 'score-v1.2.0';
+const SOUND_CACHE = 'score-sounds-v2';
 
 const PRECACHE = [
   './',
@@ -11,6 +11,7 @@ const PRECACHE = [
   './slides.html',
   './css/score.css',
   './js/score.js',
+  './js/musescore.js',
   './manifest.webmanifest',
   './favicon.png',
   './icon-192.png',
@@ -24,9 +25,11 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  // cache: 'reload' skips the browser's HTTP cache. Without it an update can store the previous version's
+  // files under the new cache name (GitHub Pages lets browsers reuse files for 10 minutes).
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(PRECACHE))
+      .then((cache) => cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' }))))
       .then(() => self.skipWaiting())
   );
 });

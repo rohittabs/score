@@ -1,7 +1,7 @@
 {
   "name": "Score",
   "short_name": "Score",
-  "description": "A free Guitar Pro player for practice. Slow a song down, loop a section, mute or solo tracks. No account, works offline.",
+  "description": "A free Guitar Pro and MuseScore player for practice. Slow a song down, loop a section, mute or solo tracks. No account, works offline.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -19,6 +19,8 @@
       "action": "./index.html",
       "accept": {
         "application/octet-stream": [".gp", ".gpx", ".gp3", ".gp4", ".gp5"],
+        "application/x-musescore": [".mscz"],
+        "application/x-musescore+xml": [".mscx"],
         "application/vnd.recordare.musicxml+xml": [".musicxml", ".xml"],
         "application/vnd.recordare.musicxml": [".mxl"]
       }
