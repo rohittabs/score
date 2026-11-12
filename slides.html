@@ -122,6 +122,13 @@ p strong{color:#fff;font-weight:750}
 .rows .staff .bar:last-child{border-right:0}
 .rows .staff .bar i{position:absolute;top:7px;bottom:7px;width:2px;border-radius:2px;background:#22d3ee}
 .rows.dense .staff .bar i{width:1.5px}
+.badge{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.45);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#67e8f9}
+.badge i{width:7px;height:7px;border-radius:50%;background:#22d3ee;box-shadow:0 0 10px #22d3ee}
+.news{display:flex;flex-direction:column;gap:11px}
+.news .row{display:grid;grid-template-columns:44px 1fr;gap:13px;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:17px;padding:13px 15px}
+.news .ic{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--grad);font-size:15px;font-weight:850;letter-spacing:-.02em}
+.news .t{font-size:17px;font-weight:780;letter-spacing:-.01em;line-height:1.2}
+.news .d{font-size:14px;font-weight:600;color:var(--muted);margin-top:3px;line-height:1.3}
 .cta{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--grad);color:#fff;font-size:19px;font-weight:800;padding:17px 26px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 16px 40px -12px rgba(59,130,246,.75);text-decoration:none;font-family:inherit}
 .cta:active{transform:scale(.98)}
 .cta.ghost{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);box-shadow:none}
@@ -169,6 +176,7 @@ p strong{color:#fff;font-weight:750}
   <section class="slide">
     <div class="inner">
       <div class="brandmark rise"><img src="icon-192.png" alt=""><span>Score</span></div>
+      <div class="badge rise"><i></i>Version 1.2</div>
       <h1 class="gt rise">Play it slow. Loop it. Own it.</h1>
       <p class="lead rise" style="color:#fff">A Guitar Pro and MuseScore player built for practice.</p>
       <p class="rise">Free. No account. No AI. Works offline.</p>
@@ -176,6 +184,20 @@ p strong{color:#fff;font-weight:750}
     <div class="swipe">
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
       <span>Swipe up</span>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">What's new in 1.2</p>
+      <h2 class="rise">Four new things</h2>
+      <div class="news rise">
+        <div class="row"><div class="ic">MS</div><div><div class="t">MuseScore files</div><div class="d">Open .mscz and .mscx from MuseScore 3, 4 and later</div></div></div>
+        <div class="row"><div class="ic">Uk</div><div><div class="t">Ukulele</div><div class="d">A real tenor ukulele, for ukulele parts and guitar parts</div></div></div>
+        <div class="row"><div class="ic">Tb</div><div><div class="t">Tabs</div><div class="d">Several songs open at once, each with its own settings</div></div></div>
+        <div class="row"><div class="ic">2</div><div><div class="t">Bars per row</div><div class="d">Give busy bars room: Auto, or 1 to 6 per line</div></div></div>
+      </div>
+      <p class="rise">Each one has its own slide below. Keep swiping for the whole tour.</p>
     </div>
   </section>
 
@@ -363,7 +385,7 @@ p strong{color:#fff;font-weight:750}
     <div class="inner">
       <p class="kicker rise">Library</p>
       <h2 class="rise">It remembers where you were</h2>
-      <p class="rise">Every file you open is kept on your device. Open it again from the Library with no internet at all.</p>
+      <p class="rise">Every file you open is kept on your device. Open it again from the Library with no internet at all, and the songs you had open in tabs come back by themselves.</p>
       <p class="rise"><strong>Score also remembers how you practiced each song:</strong> the tempo, the loop, the bars per row, which tracks were muted, soloed and shown.</p>
       <p class="lead gt rise">Come back tomorrow and carry on at 70%, bars 9 to 12.</p>
     </div>
@@ -413,7 +435,7 @@ p strong{color:#fff;font-weight:750}
       <div class="brandmark rise"><img src="icon-192.png" alt=""><span>Score</span></div>
       <h1 class="gt rise" style="font-size:66px">Press play.</h1>
       <p class="url rise">rohittabs.github.io/score</p>
-      <p class="lead rise" style="color:#fff">Free forever. Drop in one tab, set it to 60%, loop four bars.</p>
+      <p class="lead rise" style="color:#fff">Free forever. Drop in a song, set it to 60%, loop four bars.</p>
       <div class="rise" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px">
         <a class="cta" href="./index.html">Open Score</a>
         <button class="cta ghost" id="copyBtn">
