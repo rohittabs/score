@@ -18,7 +18,7 @@ Play it slow, loop the hard bars, mute the guitar and take its place.
 ![tracking](https://img.shields.io/badge/tracking-none-555555?style=flat-square)
 ![works](https://img.shields.io/badge/works-offline-3B82F6?style=flat-square)
 
-[Take the two minute tour](https://rohittabs.github.io/score/slides.html)
+[Take the two minute tour](https://rohittabs.github.io/score/slides.html) · [Everything Score does](https://rohittabs.github.io/score/about.html)
 
 </div>
 
@@ -173,7 +173,8 @@ Not supported: Guitar Pro 1 and 2 files (`.gtp`), which no browser library reads
 README.md              ← this file
 LICENSE                ← MIT
 index.html             ← the app page
-slides.html            ← a two minute scrollable tour of the app
+slides.html            ← a two minute scrollable tour, with what is new in this release
+about.html             ← a scrollable deck of everything Score does, not tied to a version
 css/score.css          ← styles, dark and light themes
 js/score.js            ← all app logic
 js/musescore.js        ← reads MuseScore files (.mscz, .mscx) by translating them to MusicXML

@@ -2,13 +2,14 @@
    Bump CACHE_VERSION whenever any app file below changes.
    The sound bank lives in its own cache (SOUND_CACHE) so an app update never downloads it again.
    Only bump SOUND_CACHE (here and in js/score.js) when sounds/score.sf3 itself changes. */
-const CACHE_VERSION = 'score-v1.2.0-tour';
+const CACHE_VERSION = 'score-v1.2.0-about';
 const SOUND_CACHE = 'score-sounds-v2';
 
 const PRECACHE = [
   './',
   './index.html',
   './slides.html',
+  './about.html',
   './css/score.css',
   './js/score.js',
   './js/musescore.js',

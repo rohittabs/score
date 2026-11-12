@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About Score: everything it does</title>
+<meta name="description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta name="theme-color" content="#070b12">
+<link rel="icon" type="image/png" href="favicon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="About Score: a free practice player for Guitar Pro and MuseScore files">
+<meta property="og:description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta property="og:image" content="https://rohittabs.github.io/score/icon-512.png">
+<meta property="og:url" content="https://rohittabs.github.io/score/about.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="About Score: a free practice player for Guitar Pro and MuseScore files">
+<meta name="twitter:description" content="A free Guitar Pro and MuseScore player for practice. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta name="twitter:image" content="https://rohittabs.github.io/score/icon-512.png">
+
+<style>
+:root{
+  --bg:#070b12;
+  --grad:linear-gradient(120deg,#22d3ee 0%,#3b82f6 52%,#7c3aed 100%);
+  --muted:rgba(255,255,255,.7);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;background:#000}
+body{
+  font-family:"SF Pro Display",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",Arial,sans-serif;
+  color:#fff;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+.stage{height:100dvh;width:100%;display:flex;align-items:center;justify-content:center;background:#000;}
+.feed{
+  position:relative;height:100dvh;width:100%;max-width:480px;background:var(--bg);
+  overflow-y:scroll;overflow-x:hidden;
+  scroll-snap-type:y mandatory;scroll-behavior:smooth;
+  -ms-overflow-style:none;scrollbar-width:none;
+}
+.feed::-webkit-scrollbar{display:none;width:0;height:0}
+@media (min-width:520px){
+  .stage{padding:22px}
+  .feed{height:min(920px,calc(100dvh - 44px));border-radius:42px;box-shadow:0 40px 120px rgba(59,130,246,.32),0 0 0 1px rgba(255,255,255,.06);}
+}
+
+.slide{
+  height:100dvh;width:100%;scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;flex-direction:column;justify-content:flex-start;
+  padding:calc(64px + env(safe-area-inset-top)) 30px calc(52px + env(safe-area-inset-bottom));
+  position:relative;overflow-y:auto;overflow-x:hidden;
+  -ms-overflow-style:none;scrollbar-width:none;
+}
+.slide::-webkit-scrollbar{display:none;width:0;height:0}
+@media (min-width:520px){ .slide{height:min(920px,calc(100dvh - 44px))} }
+
+.slide::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.9;
+  background:radial-gradient(70% 40% at 15% 12%,rgba(34,211,238,.15),transparent 70%),radial-gradient(60% 42% at 92% 92%,rgba(124,58,237,.24),transparent 72%);}
+
+.inner{position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;margin:auto 0}
+
+.rise{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+.slide.inview .rise{opacity:1;transform:none}
+.slide.inview .rise:nth-child(2){transition-delay:.08s}
+.slide.inview .rise:nth-child(3){transition-delay:.16s}
+.slide.inview .rise:nth-child(4){transition-delay:.24s}
+.slide.inview .rise:nth-child(5){transition-delay:.32s}
+.slide.inview .rise:nth-child(6){transition-delay:.4s}
+.slide.inview .rise:nth-child(7){transition-delay:.48s}
+
+h1,h2,p,ul{margin:0}
+.kicker{font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:60px;font-weight:850;line-height:.98;letter-spacing:-.03em}
+h2{font-size:37px;font-weight:820;line-height:1.08;letter-spacing:-.02em}
+.lead{font-size:22px;font-weight:750;line-height:1.28;letter-spacing:-.01em}
+p{font-size:18px;line-height:1.5;color:var(--muted);font-weight:500}
+p strong{color:#fff;font-weight:750}
+.gt{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat{font-size:118px;font-weight:850;line-height:.86;letter-spacing:-.04em}
+.stat.sm{font-size:82px}
+
+.ladder{display:flex;flex-direction:column;gap:14px}
+.ladder .item{display:flex;flex-direction:column;gap:8px}
+.ladder .lab{display:flex;justify-content:space-between;font-size:17px;font-weight:700;gap:12px}
+.ladder .lab .pct{color:var(--muted);font-weight:600;font-size:15px;text-align:right}
+.ladder .bar{height:12px;border-radius:8px;background:rgba(255,255,255,.1);overflow:hidden}
+.ladder .fill{height:100%;border-radius:8px;background:var(--grad);width:0;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.slide.inview .ladder .fill{width:var(--w)}
+
+.tones{display:flex;flex-direction:column;gap:13px}
+.tone{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:15px 17px}
+.tone .t{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.tone .q{font-size:18px;font-weight:750;letter-spacing:-.01em;line-height:1.3}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gcell{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:17px;padding:14px 15px}
+.gcell .n{font-size:27px;font-weight:850;letter-spacing:-.02em;line-height:1}
+.gcell .l{font-size:14px;color:var(--muted);font-weight:600;margin-top:5px;line-height:1.3}
+
+.keys{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;align-items:center}
+.keys kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-bottom-width:3px;border-radius:9px;padding:5px 10px;text-align:center;white-space:nowrap}
+.keys span{font-size:16px;font-weight:600;color:var(--muted)}
+
+.tabstaff{position:relative;height:116px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);overflow:hidden}
+.tabstaff i{position:absolute;left:16px;right:16px;height:2px;background:rgba(255,255,255,.22)}
+.tabstaff .loop{position:absolute;top:10px;bottom:10px;left:30%;width:38%;border-radius:10px;background:rgba(124,58,237,.3);border:2px solid #8b5cf6}
+.tabstaff .head{position:absolute;top:10px;bottom:10px;left:30%;width:3px;border-radius:2px;background:#22d3ee;box-shadow:0 0 14px #22d3ee}
+.slide.inview .tabstaff .head{animation:sweep 2.4s linear infinite}
+@keyframes sweep{from{left:30%}to{left:68%}}
+
+.tabsdemo{display:flex;gap:6px;align-items:flex-end;padding:12px 12px 0;border-radius:18px 18px 0 0;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-bottom:0}
+.tabsdemo .tb{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:38px;padding:0 9px;border-radius:11px 11px 0 0;font-size:14px;font-weight:650;color:var(--muted);white-space:nowrap;overflow:hidden}
+.tabsdemo .tb b{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 5px;border-radius:5px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.6)}
+.tabsdemo .tb span{overflow:hidden;text-overflow:ellipsis}
+.tabsdemo .tb.on{flex:1.4;background:rgba(255,255,255,.1);color:#fff;box-shadow:inset 0 2px 0 #22d3ee}
+.tabsdemo .tb.on b{border-color:#22d3ee;color:#22d3ee}
+.tabsheet{height:26px;border-radius:0 0 18px 18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);border-top:0}
+.rows{display:flex;flex-direction:column;gap:10px}
+.rows .cap{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.rows .staff{position:relative;height:52px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);overflow:hidden;display:flex}
+.rows .staff .bar{flex:1;position:relative;border-right:2px solid rgba(255,255,255,.28);background:repeating-linear-gradient(to bottom,transparent 0 9px,rgba(255,255,255,.2) 9px 10px)}
+.rows .staff .bar:last-child{border-right:0}
+.rows .staff .bar i{position:absolute;top:7px;bottom:7px;width:2px;border-radius:2px;background:#22d3ee}
+.rows.dense .staff .bar i{width:1.5px}
+.badge{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.45);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#67e8f9}
+.badge i{width:7px;height:7px;border-radius:50%;background:#22d3ee;box-shadow:0 0 10px #22d3ee}
+.news{display:flex;flex-direction:column;gap:11px}
+.news .row{display:grid;grid-template-columns:44px 1fr;gap:13px;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:17px;padding:13px 15px}
+.news .ic{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--grad);font-size:15px;font-weight:850;letter-spacing:-.02em}
+.news .t{font-size:17px;font-weight:780;letter-spacing:-.01em;line-height:1.2}
+.news .d{font-size:14px;font-weight:600;color:var(--muted);margin-top:3px;line-height:1.3}
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--grad);color:#fff;font-size:19px;font-weight:800;padding:17px 26px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 16px 40px -12px rgba(59,130,246,.75);text-decoration:none;font-family:inherit}
+.cta:active{transform:scale(.98)}
+.cta.ghost{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);box-shadow:none}
+.copied{font-size:15px;font-weight:700;color:#3ddc97;opacity:0;transition:opacity .3s}
+.copied.on{opacity:1}
+.url{font-size:20px;font-weight:800;letter-spacing:-.01em;word-break:break-all}
+
+.brandmark{display:flex;align-items:center;gap:13px}
+.brandmark img{width:52px;height:52px;filter:drop-shadow(0 6px 18px rgba(59,130,246,.55))}
+.brandmark span{font-size:15px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+.progress{position:fixed;top:0;left:0;right:0;height:calc(4px + env(safe-area-inset-top));z-index:50;background:transparent;pointer-events:none}
+.progress .track{position:absolute;top:env(safe-area-inset-top);left:0;right:0;height:4px;background:rgba(255,255,255,.12)}
+.progress .barfill{position:absolute;top:env(safe-area-inset-top);left:0;height:4px;width:0;background:var(--grad);transition:width .2s ease}
+@media (min-width:520px){
+  .progress{max-width:480px;left:50%;transform:translateX(-50%);top:22px}
+  .progress .track,.progress .barfill{top:0;border-radius:0 0 4px 4px}
+  .progress{border-radius:42px 42px 0 0;overflow:hidden}
+}
+
+.swipe{position:absolute;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:6px;z-index:2;color:var(--muted)}
+.swipe span{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.swipe .chev{width:26px;height:26px;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-9px);opacity:1}}
+.feed.scrolled .swipe{opacity:0;transition:opacity .4s}
+
+@media (max-height:700px){
+  h1{font-size:50px} h2{font-size:31px} .stat{font-size:92px} p{font-size:16.5px} .lead{font-size:20px}
+  .slide{padding-top:calc(44px + env(safe-area-inset-top))}
+}
+@media (prefers-reduced-motion:reduce){
+  .rise{transition:none;opacity:1;transform:none}
+  .feed{scroll-behavior:auto}
+  .swipe .chev{animation:none}
+  .ladder .fill{transition:none}
+  .slide.inview .tabstaff .head{animation:none}
+}
+
+.steps{display:flex;flex-direction:column;gap:10px}
+.steps .st{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start}
+.steps .no{width:34px;height:34px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:850;font-size:15px}
+.steps .tx{font-size:16.5px;font-weight:650;line-height:1.35;padding-top:5px}
+.steps .tx em{font-style:normal;color:var(--muted);font-weight:600}
+.nope{display:flex;flex-direction:column;gap:8px;margin-top:2px}
+.nope div{font-size:15px;font-weight:650;color:var(--muted);padding-left:22px;position:relative;line-height:1.35}
+.nope div::before{content:"";position:absolute;left:4px;top:8px;width:9px;height:2px;border-radius:2px;background:rgba(255,255,255,.45)}
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc span{padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font-size:14px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="progress"><div class="track"></div><div class="barfill" id="barfill"></div></div>
+<div class="stage">
+<div class="feed" id="feed">
+
+  <section class="slide">
+    <div class="inner">
+      <div class="brandmark rise"><img src="icon-192.png" alt=""><span>Score</span></div>
+      <h1 class="gt rise">Everything Score does.</h1>
+      <p class="lead rise" style="color:#fff">A free practice player for Guitar Pro and MuseScore files.</p>
+      <p class="rise">Free. No account. No AI. Works offline. Runs in any modern browser on a phone, tablet or computer.</p>
+    </div>
+    <div class="swipe">
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+      <span>Swipe up</span>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">What it is</p>
+      <h2 class="rise">A player made for learning songs</h2>
+      <p class="rise">Score opens the tab files you already have and plays them back, with the tab and the notation scrolling along as it plays.</p>
+      <p class="rise">Everything that matters when you practise is one tap away: <strong>tempo, loop, metronome, and a mute and solo button for every instrument.</strong></p>
+      <div class="toc rise"><span>Open</span><span>Tabs</span><span>Play</span><span>Tempo</span><span>Loop</span><span>Metronome</span><span>Tracks</span><span>Sound</span><span>Reading</span><span>Library</span><span>Offline</span><span>Shortcuts</span><span>Privacy</span></div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Files</p>
+      <h2 class="rise">Every Guitar Pro version, and MuseScore</h2>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">.gp</div><div class="l">Guitar Pro 7 and 8</div></div>
+        <div class="gcell"><div class="n gt">.gpx</div><div class="l">Guitar Pro 6</div></div>
+        <div class="gcell"><div class="n gt">.gp5 .gp4</div><div class="l">Guitar Pro 5 and 4</div></div>
+        <div class="gcell"><div class="n gt">.gp3</div><div class="l">Guitar Pro 3</div></div>
+        <div class="gcell"><div class="n gt">.mscz .mscx</div><div class="l">MuseScore 3, 4 and later</div></div>
+        <div class="gcell"><div class="n gt">.xml .mxl</div><div class="l">MusicXML, and Capella .capx</div></div>
+      </div>
+      <p class="rise">Not supported: Guitar Pro 1 and 2 (.gtp), and files saved by MuseScore 2 or older. Save those once in MuseScore 3 or 4 and they open.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Opening a song</p>
+      <h2 class="rise">Drop it in</h2>
+      <div class="steps rise">
+        <div class="st"><div class="no">1</div><div class="tx">Drag a file anywhere onto the page. <em>Or tap Open, or press O.</em></div></div>
+        <div class="st"><div class="no">2</div><div class="tx">Drop or pick several files at once. <em>Each one opens in its own tab.</em></div></div>
+        <div class="st"><div class="no">3</div><div class="tx">No file at hand? <em>Try the demo riff on the start screen.</em></div></div>
+        <div class="st"><div class="no">4</div><div class="tx">Installed as an app on Chrome or Edge? <em>Open Guitar Pro and MuseScore files with Score straight from your computer.</em></div></div>
+      </div>
+      <p class="rise">The first track of the song is shown. The Tracks panel shows the rest.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Tabs</p>
+      <h2 class="rise">Several songs open at once</h2>
+      <div class="rise">
+        <div class="tabsdemo">
+          <div class="tb"><b>GP5</b><span>Riff</span></div>
+          <div class="tb on"><b>MSCZ</b><span>Etude</span></div>
+          <div class="tb"><b>GP</b><span>Solo</span></div>
+        </div>
+        <div class="tabsheet"></div>
+      </div>
+      <div class="tones rise">
+        <div class="tone"><div class="t">Switch</div><div class="q">Click a tab, or press Shift with the left or right arrow. The + opens more files.</div></div>
+        <div class="tone"><div class="t">Each one remembers</div><div class="q">Its tempo, loop, mix, bars per row and position. The tabs are back next time.</div></div>
+        <div class="tone"><div class="t">Close</div><div class="q">The &times; or a middle click. The song stays in the Library.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Playing</p>
+      <h2 class="rise">Follow along</h2>
+      <p class="rise">Press play and a cursor moves through the music while the page scrolls with it. The current bar, the time and the real BPM are always on screen.</p>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">Click</div><div class="l">any note to jump there</div></div>
+        <div class="gcell"><div class="n gt">&larr; &rarr;</div><div class="l">one bar back or forward</div></div>
+        <div class="gcell"><div class="n gt">Space</div><div class="l">play and pause</div></div>
+        <div class="gcell"><div class="n gt">S</div><div class="l">stop, back to the start</div></div>
+      </div>
+      <p class="rise">Drag the progress bar to move anywhere in the song.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Tempo</p>
+      <h2 class="rise">Any speed from a quarter to double</h2>
+      <p class="rise">The pitch never changes. The real BPM is shown next to the percentage, and tempo changes inside the song are followed.</p>
+      <div class="ladder rise">
+        <div class="item"><div class="lab"><span>50%</span><span class="pct">Learn the notes</span></div><div class="bar"><div class="fill" style="--w:25%"></div></div></div>
+        <div class="item"><div class="lab"><span>75%</span><span class="pct">Clean it up</span></div><div class="bar"><div class="fill" style="--w:50%"></div></div></div>
+        <div class="item"><div class="lab"><span>100%</span><span class="pct">Song tempo</span></div><div class="bar"><div class="fill" style="--w:75%"></div></div></div>
+        <div class="item"><div class="lab"><span>110%</span><span class="pct">Now it feels easy</span></div><div class="bar"><div class="fill" style="--w:100%"></div></div></div>
+      </div>
+      <p class="rise">Steps of 5%, from 25% to 200%. Press <strong>-</strong> and <strong>+</strong>, or <strong>0</strong> to go back to 100%.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Loop</p>
+      <h2 class="rise">Repeat only the hard bars</h2>
+      <div class="tones rise">
+        <div class="tone"><div class="t">With the mouse or a finger</div><div class="q">Drag across the bars in the music.</div></div>
+        <div class="tone"><div class="t">With numbers</div><div class="q">Type "from bar 9 to bar 12" in the Loop panel, or use This bar.</div></div>
+        <div class="tone"><div class="t">While it plays</div><div class="q">Press [ where it starts and ] where it ends.</div></div>
+      </div>
+      <p class="rise"><strong>L</strong> turns the loop on and off, <strong>Esc</strong> clears it. Combine it with a slower tempo and work up from there.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Time</p>
+      <h2 class="rise">Metronome and count-in</h2>
+      <p class="rise">The metronome clicks along and follows every tempo and time signature change in the file, at whatever speed you chose.</p>
+      <p class="rise"><strong>Count-in</strong> gives one bar of clicks before the music starts, so your hands are ready when the first note lands.</p>
+      <p class="lead gt rise">M for metronome. C for count-in.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Tracks</p>
+      <h2 class="rise">You are the mixing desk</h2>
+      <div class="tones rise">
+        <div class="tone"><div class="t">Mute</div><div class="q">Silence the guitar and play its part yourself over the band.</div></div>
+        <div class="tone"><div class="t">Solo</div><div class="q">Hear one instrument alone to work out what it really plays.</div></div>
+        <div class="tone"><div class="t">Volume</div><div class="q">A slider for every track, from silent up to 150%.</div></div>
+        <div class="tone"><div class="t">Show</div><div class="q">Tick the tracks you want to read. One, several, or all.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Guitar sound</p>
+      <h2 class="rise">Four guitars and a ukulele</h2>
+      <p class="rise">One tap changes every guitar and ukulele track. Bass, drums and everything else stay as written. It works while the song plays.</p>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">Acoustic</div><div class="l">steel string guitar</div></div>
+        <div class="gcell"><div class="n gt">Electric</div><div class="l">clean, recorded through an amp</div></div>
+        <div class="gcell"><div class="n gt">Nylon</div><div class="l">classical guitar</div></div>
+        <div class="gcell"><div class="n gt">Ukulele</div><div class="l">a real tenor ukulele</div></div>
+      </div>
+      <p class="rise"><strong>Original</strong> plays the instruments the file was written for, with ukulele parts on the ukulele. On <strong>Ukulele</strong>, guitar parts move up into its range.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">The sound</p>
+      <h2 class="rise">Recorded instruments, not beeps</h2>
+      <p class="rise">Every guitar, ukulele, bass and drum is a recording of a real instrument that rings out the way a string does.</p>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">128</div><div class="l">instruments</div></div>
+        <div class="gcell"><div class="n gt">13</div><div class="l">drum kits</div></div>
+        <div class="gcell"><div class="n gt">Room</div><div class="l">a touch of reverb, on or off</div></div>
+        <div class="gcell"><div class="n gt">17.5 MB</div><div class="l">downloaded once, then kept</div></div>
+      </div>
+      <p class="rise">A limiter keeps a full band from crackling on loud passages. The sounds come from free, openly licensed sound sets.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Reading</p>
+      <h2 class="rise">See it your way</h2>
+      <div class="grid rise">
+        <div class="gcell"><div class="n gt">Tab</div><div class="l">tab, notation, or both together</div></div>
+        <div class="gcell"><div class="n gt">Page</div><div class="l">or one long horizontal strip</div></div>
+        <div class="gcell"><div class="n gt">Zoom</div><div class="l">50% to 200%</div></div>
+        <div class="gcell"><div class="n gt">Dark</div><div class="l">and light themes</div></div>
+      </div>
+      <p class="rise"><strong>T</strong> hides the side panel to give the music the whole screen.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Bars per row</p>
+      <h2 class="rise">Give busy bars room</h2>
+      <p class="rise">Fast passages can squeeze four bars onto a line until the notes run together. Pick how many bars each row gets.</p>
+      <div class="rows dense rise">
+        <div class="cap">Auto</div>
+        <div class="staff">
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+        </div>
+      </div>
+      <div class="rows rise">
+        <div class="cap">2 per row</div>
+        <div class="staff">
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+          <div class="bar"><i style="left:8%"></i><i style="left:20%"></i><i style="left:32%"></i><i style="left:44%"></i><i style="left:56%"></i><i style="left:68%"></i><i style="left:80%"></i><i style="left:92%"></i></div>
+        </div>
+      </div>
+      <p class="rise"><strong>Auto, or 1 to 6</strong>, under Display. Each song keeps its own setting.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">MuseScore</p>
+      <h2 class="rise">Straight from the MuseScore folder</h2>
+      <p class="rise">Open the .mscz that MuseScore saves, usually in Documents, MuseScore4, Scores. No export step.</p>
+      <p class="rise">Notes and rhythms, tab with strings and frets, bends, slides, hammer-ons, let ring, palm mute, lyrics, chord symbols, dynamics, tempo, repeats and endings all come across.</p>
+      <p class="rise">Score lays out the music itself, so MuseScore's page breaks and fonts are not copied. Zoom and Bars per row work the same as for Guitar Pro files.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Library</p>
+      <h2 class="rise">It remembers where you were</h2>
+      <p class="rise">Every file you open is kept on your device. Open it again from the Library with no internet at all. Songs that are open in a tab are marked.</p>
+      <p class="rise"><strong>For each song Score remembers</strong> the tempo, the loop, the bars per row, and which tracks were muted, soloed, turned down and shown.</p>
+      <p class="lead gt rise">Come back tomorrow and carry on at 70%, bars 9 to 12.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Anywhere</p>
+      <h2 class="rise">Offline, and installable</h2>
+      <div class="tones rise">
+        <div class="tone"><div class="t">Offline</div><div class="q">After the first visit, Score works in plane mode. Songs, sounds and settings are all on the device.</div></div>
+        <div class="tone"><div class="t">Phones and tablets</div><div class="q">iPhone and iPad: Safari, Share, Add to Home Screen. Android: Chrome menu, Install app.</div></div>
+        <div class="tone"><div class="t">Mac and PC</div><div class="q">In Chrome or Edge, use the install button in the address bar. In Safari on a Mac, File, Add to Dock.</div></div>
+      </div>
+      <p class="rise">Updates arrive by themselves. Score tells you when to reload.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">On a keyboard</p>
+      <h2 class="rise">Hands stay on the guitar</h2>
+      <div class="keys rise">
+        <kbd>Space</kbd><span>Play or pause</span>
+        <kbd>S</kbd><span>Stop, back to the start</span>
+        <kbd>L</kbd><span>Loop on or off</span>
+        <kbd>[ &nbsp;]</kbd><span>Loop start and end at this bar</span>
+        <kbd>Esc</kbd><span>Clear the loop</span>
+        <kbd>- + 0</kbd><span>Slower, faster, back to 100%</span>
+        <kbd>&larr; &rarr;</kbd><span>Previous or next bar</span>
+        <kbd>Shift &larr; &rarr;</kbd><span>Previous or next tab</span>
+        <kbd>M &nbsp;C</kbd><span>Metronome, count-in</span>
+        <kbd>O</kbd><span>Open files</span>
+        <kbd>T</kbd><span>Show or hide the side panel</span>
+        <kbd>?</kbd><span>All shortcuts</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Privacy</p>
+      <h2 class="rise">There is no server</h2>
+      <p class="rise">Your files are read by your own browser and never uploaded. There is nothing to sign up for and nothing is tracked.</p>
+      <div class="nope rise">
+        <div>No account or login</div>
+        <div>No uploads</div>
+        <div>No tracking or analytics</div>
+        <div>No AI</div>
+        <div>No ads, no price</div>
+      </div>
+      <p class="lead gt rise">Your files are nobody else's data.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <p class="kicker rise">Good to know</p>
+      <h2 class="rise">A few honest details</h2>
+      <div class="nope rise">
+        <div>The library lives in this browser. Clearing browser data removes it, so keep your original files somewhere safe.</div>
+        <div>Each browser and device has its own library. Open the file there once and it is kept.</div>
+        <div>The first visit downloads the sounds once, about 17.5 MB, so do it on Wi-Fi.</div>
+        <div>Score is open source under the MIT licence. Notation and playback by alphaTab.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="inner">
+      <div class="brandmark rise"><img src="icon-192.png" alt=""><span>Score</span></div>
+      <h1 class="gt rise" style="font-size:66px">Press play.</h1>
+      <p class="url rise">rohittabs.github.io/score</p>
+      <p class="lead rise" style="color:#fff">Free forever. Drop in a song, set it to 60%, loop four bars.</p>
+      <div class="rise" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px">
+        <a class="cta" href="./index.html">Open Score</a>
+        <button class="cta ghost" id="copyBtn">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy link
+        </button>
+        <span class="copied" id="copied">Copied</span>
+      </div>
+      <p class="rise" style="margin-top:4px">What changed lately? <a href="./slides.html" style="color:#67e8f9;font-weight:700">See the release tour</a>.</p>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<script>
+(function(){
+  var feed=document.getElementById('feed');
+  var slides=[].slice.call(feed.querySelectorAll('.slide'));
+  var barfill=document.getElementById('barfill');
+
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting) e.target.classList.add('inview'); });
+  },{root:feed,threshold:.55});
+  slides.forEach(function(s){ io.observe(s); });
+  slides[0].classList.add('inview');
+
+  function onScroll(){
+    var max=feed.scrollHeight-feed.clientHeight;
+    var p=max>0?feed.scrollTop/max:0;
+    barfill.style.width=(p*100)+'%';
+    if(feed.scrollTop>40) feed.classList.add('scrolled');
+  }
+  feed.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+
+  function idx(){ return Math.round(feed.scrollTop/slides[0].offsetHeight); }
+  function goto(i){ i=Math.max(0,Math.min(slides.length-1,i)); feed.scrollTo({top:i*slides[0].offsetHeight,behavior:'smooth'}); }
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){ e.preventDefault(); goto(idx()+1); }
+    else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); goto(idx()-1); }
+    else if(e.key==='Home'){ e.preventDefault(); goto(0); }
+    else if(e.key==='End'){ e.preventDefault(); goto(slides.length-1); }
+  });
+
+  var link='https://rohittabs.github.io/score';
+  var btn=document.getElementById('copyBtn'), copied=document.getElementById('copied'), t;
+  btn.addEventListener('click',function(){
+    function ok(){ copied.classList.add('on'); clearTimeout(t); t=setTimeout(function(){copied.classList.remove('on');},1800); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(ok).catch(fallback); }
+    else fallback();
+    function fallback(){ var ta=document.createElement('textarea'); ta.value=link; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok(); }
+  });
+})();
+</script>
+</body>
+</html>
