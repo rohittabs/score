@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<title>Score</title>
+<defs><linearGradient id="ring" x1="0.12" y1="0.02" x2="0.88" y2="0.98"><stop offset="0" stop-color="#22d3ee"/><stop offset="0.52" stop-color="#3b82f6"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="182" y1="124" x2="362" y2="388"><stop offset="0" stop-color="#06b6d4"/><stop offset="0.5" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+<clipPath id="tri"><path d="M182.0,154.0 Q182.0,124.0 207.7,139.4 L376.3,240.6 Q402.0,256.0 376.3,271.4 L207.7,372.6 Q182.0,388.0 182.0,358.0 Z"/></clipPath></defs>
+<circle cx="256" cy="256" r="250" fill="url(#ring)"/><circle cx="256" cy="256" r="196" fill="#ffffff"/>
+<g clip-path="url(#tri)" fill="url(#g)"><rect x="178" y="124.00" width="228" height="33.85"/><rect x="178" y="170.03" width="228" height="33.85"/><rect x="178" y="216.06" width="228" height="33.85"/><rect x="178" y="262.09" width="228" height="33.85"/><rect x="178" y="308.12" width="228" height="33.85"/><rect x="178" y="354.15" width="228" height="33.85"/></g>
+</svg>

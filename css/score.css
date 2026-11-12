@@ -111,7 +111,7 @@ kbd {
   background: var(--bg-2);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-mark { color: var(--accent); display: inline-flex; }
+.brand-mark { display: block; width: 30px; height: 30px; }
 .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
 .brand-tag { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 .song-meta {
@@ -177,7 +177,7 @@ kbd {
   grid-template-columns: var(--sidebar-w) 1fr;
   min-height: 0;
 }
-.app.sidebar-hidden .main { grid-template-columns: 0 1fr; }
+.app.sidebar-hidden .main { grid-template-columns: 1fr; }
 .app.sidebar-hidden .sidebar { display: none; }
 
 .sidebar {
@@ -255,8 +255,10 @@ kbd {
 
 /* Loop panel */
 .loop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.loop-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
+.loop-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); min-width: 0; }
 .loop-grid input {
+  width: 100%;
+  min-width: 0;
   height: 34px;
   padding: 0 10px;
   border-radius: var(--radius-s);
@@ -363,7 +365,7 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 20px;
   background: var(--panel);
 }
-.drop-icon { color: var(--accent); margin-bottom: 8px; }
+.drop-logo { display: block; margin: 0 auto 10px; }
 .drop-inner h1 { margin: 6px 0 4px; font-size: 24px; letter-spacing: -0.02em; }
 .drop-inner p { margin: 0 0 18px; color: var(--text-2); }
 .drop-buttons { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
@@ -517,3 +519,31 @@ input[type="range"]::-moz-range-thumb {
   .group.tempo .btn.ghost { min-width: 84px; }
   .bar-indicator { display: none; }
 }
+
+/* Sound download status ------------------------------------------------- */
+.sound-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 2px 0 4px;
+}
+.sound-status.error { color: var(--red); }
+.sound-status-track {
+  flex: 1;
+  max-width: 260px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.sound-status.error .sound-status-track { display: none; }
+.sound-status-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width .2s;
+}
+#segSound button { font-size: 12px; }

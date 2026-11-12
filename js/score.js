@@ -4,10 +4,13 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const SETTINGS_KEY = 'score.settings.v1';
   const DB_NAME = 'score-library';
   const DB_STORE = 'songs';
+  const SOUND_URL = 'sounds/score.sf3';
+  const SOUND_BYTES = 17992588;            // used for the progress bar when the server sends no length
+  const SOUND_CACHE = 'score-sounds-v1';   // kept apart from the app cache so app updates do not download the sounds again
 
   const $ = (id) => document.getElementById(id);
   const app = $('app');
@@ -34,6 +37,10 @@
     bpmValue: $('bpmValue'),
     zoomValue: $('zoomValue'),
     masterVolume: $('masterVolume'),
+    soundStatus: $('soundStatus'),
+    soundStatusText: $('soundStatusText'),
+    soundStatusBar: $('soundStatusBar'),
+    btnReverb: $('btnReverb'),
     btnPlay: $('btnPlay'),
     btnStop: $('btnStop'),
     btnLoop: $('btnLoop'),
@@ -58,6 +65,8 @@
     metronome: false,
     countIn: false,
     masterVolume: 1,
+    guitarSound: 'original',   // original | acoustic | electric | nylon
+    reverb: true,
     sidebarHidden: window.innerWidth < 900,
   };
   let settings = Object.assign({}, defaults);
@@ -96,6 +105,8 @@
     awaitRender: false,
     rehighlightAfterRender: false,
     loads: 0,
+    soundsReady: false,
+    resume: null,          // { tick, play } restored after the sound of a track was changed
   };
 
   /* ---------------------------------------------------------------------
@@ -167,7 +178,6 @@
       },
       player: {
         playerMode: alphaTab.PlayerMode.EnabledSynthesizer,
-        soundFont: 'vendor/alphatab/soundfont/sonivox.sf2',
         scrollElement: els.viewport,
         scrollOffsetY: -40,
         scrollOffsetX: -40,
@@ -209,8 +219,17 @@
     });
     api.soundFontLoaded.on(() => {
       state.playerReady = true;
+      state.soundsReady = true;
+      setSoundStatus(null);
       updatePlayEnabled();
     });
+    const loadFailed = api.soundFontLoadFailed || (api.player && api.player.soundFontLoadFailed);
+    if (loadFailed && loadFailed.on) {
+      loadFailed.on((err) => {
+        console.error('[Score] sound bank rejected', err);
+        setSoundStatus('Sounds could not be loaded', 0, true);
+      });
+    }
 
     api.midiLoaded.on((args) => {
       state.endTime = args.endTime;
@@ -218,6 +237,7 @@
       updatePlayEnabled();
       state.awaitMidi = false;
       maybeApplyPractice();
+      restoreAfterSoundChange();
     });
 
     api.playerStateChanged.on((args) => {
@@ -272,6 +292,287 @@
     api.countInVolume = settings.countIn ? 1 : 0;
     api.masterVolume = settings.masterVolume;
     return api;
+  }
+
+  /* ---------------------------------------------------------------------
+     Sound bank: downloaded once, kept in its own cache, then loaded from there (also offline)
+  --------------------------------------------------------------------- */
+  function setSoundStatus(text, fraction, isError) {
+    if (!text) { els.soundStatus.hidden = true; return; }
+    els.soundStatus.hidden = false;
+    els.soundStatus.classList.toggle('error', !!isError);
+    els.soundStatusText.textContent = text;
+    els.soundStatusBar.style.width = Math.round(Math.max(0, Math.min(1, fraction || 0)) * 100) + '%';
+  }
+
+  async function readCachedSounds() {
+    if (!('caches' in window)) return null;
+    try {
+      const cache = await caches.open(SOUND_CACHE);
+      const hit = await cache.match(SOUND_URL);
+      if (!hit) return null;
+      const bytes = new Uint8Array(await hit.arrayBuffer());
+      return bytes.byteLength > 1000000 ? bytes : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function downloadSounds() {
+    const res = await fetch(SOUND_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const total = Number(res.headers.get('Content-Length')) || SOUND_BYTES;
+    let bytes;
+    if (res.body && res.body.getReader) {
+      const reader = res.body.getReader();
+      const parts = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value);
+        received += value.byteLength;
+        setSoundStatus('Downloading sounds ' + Math.min(99, Math.round((received / total) * 100)) + '% (one time)', received / total);
+      }
+      bytes = new Uint8Array(received);
+      let offset = 0;
+      for (const part of parts) { bytes.set(part, offset); offset += part.byteLength; }
+    } else {
+      bytes = new Uint8Array(await res.arrayBuffer());
+    }
+    // Keep a copy for offline use. The service worker serves this same cache entry.
+    try {
+      if ('caches' in window) {
+        const cache = await caches.open(SOUND_CACHE);
+        await cache.put(SOUND_URL, new Response(bytes.slice().buffer, {
+          headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(bytes.byteLength) },
+        }));
+      }
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) { /* storage full or unavailable: sounds still work for this visit */ }
+    return bytes;
+  }
+
+  async function loadSounds() {
+    setSoundStatus('Loading sounds', 0.02);
+    let bytes = await readCachedSounds();
+    if (!bytes) {
+      try {
+        bytes = await downloadSounds();
+      } catch (e) {
+        console.error('[Score] sound download failed', e);
+        setSoundStatus('Sounds not downloaded yet. Connect to the internet once, then reload.', 0, true);
+        return;
+      }
+    }
+    setSoundStatus('Preparing sounds', 1);
+    if (!state.api.loadSoundFont(bytes, false)) setSoundStatus('Sounds could not be loaded', 0, true);
+  }
+
+  /* ---------------------------------------------------------------------
+     Guitar sound: play every guitar track as written, or as acoustic, electric or nylon
+  --------------------------------------------------------------------- */
+  const GUITAR_SOUNDS = {
+    original: { program: null, label: 'Original' },
+    acoustic: { program: 25, label: 'Acoustic' },
+    electric: { program: 27, label: 'Electric' },
+    nylon: { program: 24, label: 'Nylon' },
+  };
+  const AUTOMATION_INSTRUMENT = 2;
+  const AUTOMATION_BANK = 5;
+  const originalSounds = new WeakMap(); // track -> { program, automations: [[automation, value], ...] }
+
+  function isPercussionTrack(track) {
+    return (track.playbackInfo && track.playbackInfo.primaryChannel === 9) || track.staves.some((st) => st.isPercussion);
+  }
+
+  function eachAutomation(track, fn) {
+    for (const staff of track.staves) {
+      for (const bar of staff.bars) {
+        for (const voice of bar.voices) {
+          for (const beat of voice.beats) {
+            if (beat.automations) for (const automation of beat.automations) fn(automation);
+          }
+        }
+      }
+    }
+  }
+
+  // Runs before alphaTab generates the MIDI for a song, and again whenever the choice changes.
+  function applyGuitarSound(score) {
+    const choice = GUITAR_SOUNDS[settings.guitarSound] || GUITAR_SOUNDS.original;
+    for (const track of score.tracks) {
+      if (isPercussionTrack(track)) continue;
+      let orig = originalSounds.get(track);
+      if (!orig) {
+        orig = { program: track.playbackInfo.program, automations: [] };
+        eachAutomation(track, (a) => {
+          if (a.type === AUTOMATION_INSTRUMENT) orig.automations.push([a, a.value]);
+          // The sound bank only has the standard bank; other banks would leave the track silent.
+          if (a.type === AUTOMATION_BANK) a.value = 0;
+        });
+        track.playbackInfo.bank = 0;
+        originalSounds.set(track, orig);
+      }
+      const isGuitar = orig.program >= 24 && orig.program <= 31;
+      const override = isGuitar && choice.program !== null;
+      track.playbackInfo.program = override ? choice.program : orig.program;
+      for (const [automation, value] of orig.automations) automation.value = override ? choice.program : value;
+    }
+  }
+
+  function setGuitarSound(value) {
+    if (!GUITAR_SOUNDS[value]) value = 'original';
+    const changed = settings.guitarSound !== value;
+    settings.guitarSound = value;
+    document.querySelectorAll('#segSound button').forEach((b) => b.classList.toggle('active', b.dataset.value === value));
+    saveSettings();
+    if (!changed || !state.score || !state.api) return;
+    applyGuitarSound(state.score);
+    refreshTrackSubtitles();
+    // New instruments need new MIDI. Remember where we were and carry on from there.
+    const api = state.api;
+    state.resume = {
+      tick: api.tickPosition,
+      play: api.playerState === alphaTab.synth.PlayerState.Playing,
+    };
+    api.loadMidiForScore();
+    const guitars = state.score.tracks.filter((t) => { const o = originalSounds.get(t); return o && o.program >= 24 && o.program <= 31; }).length;
+    toast(guitars ? `Guitar sound: ${GUITAR_SOUNDS[value].label}` : 'This song has no guitar tracks to change.');
+  }
+
+  function restoreAfterSoundChange() {
+    const resume = state.resume;
+    if (!resume) return;
+    state.resume = null;
+    const api = state.api;
+    try {
+      if (state.loopStartBar && state.loopEndBar) {
+        const loopWasOn = state.loopOn;
+        setLoopBars(state.loopStartBar, state.loopEndBar, false);
+        if (!loopWasOn) setLoop(false, true);
+      }
+      if (resume.tick > 0) api.tickPosition = resume.tick;
+      if (resume.play) {
+        // the synth reports ready a moment after the MIDI event; start as soon as it can
+        const start = () => { if (api.isReadyForPlayback) api.play(); else setTimeout(start, 40); };
+        start();
+      }
+    } catch (e) { /* position is a convenience only */ }
+  }
+
+  /* ---------------------------------------------------------------------
+     Output chain: a little room reverb and a safety limiter between alphaTab and the speakers.
+     alphaTab connects its output node straight to the destination, so that one connection is
+     redirected through this chain. Everything else in the Web Audio graph is left alone.
+  --------------------------------------------------------------------- */
+  const fx = { ctx: null, input: null, wet: null, limiter: null, post: null };
+  const REVERB_LEVEL = 0.2;
+  const OUTPUT_BOOST = 1.4;   // Guitar Pro files mix quietly; the limiter below catches the rare loud one
+
+  function buildImpulse(ctx) {
+    // A small bright room: 14 ms pre-delay, about one second of decaying, slowly darkening noise.
+    const rate = ctx.sampleRate;
+    const length = Math.floor(rate * 1.25);
+    const pre = Math.floor(rate * 0.014);
+    const buffer = ctx.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      let seed = ch === 0 ? 0x1234abcd : 0x9e3779b9;
+      let low = 0;
+      for (let i = pre; i < length; i++) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        const noise = seed / 2147483648 - 1;
+        const t = (i - pre) / rate;
+        const smooth = 0.35 + Math.min(0.55, t * 0.9);   // more low-pass as the tail goes on
+        low = low * smooth + noise * (1 - smooth);
+        data[i] = low * Math.exp(-t * 5.2);
+      }
+    }
+    return buffer;
+  }
+
+  function buildOutputChain(ctx) {
+    const input = ctx.createGain();
+    input.gain.value = OUTPUT_BOOST;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -4;
+    limiter.knee.value = 4;
+    limiter.ratio.value = 14;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.12;
+    const post = ctx.createGain();
+    post.gain.value = 0.8;   // refined below once the make-up gain of this browser is known
+    const convolver = ctx.createConvolver();
+    convolver.buffer = buildImpulse(ctx);
+    const wet = ctx.createGain();
+    wet.gain.value = settings.reverb ? REVERB_LEVEL : 0;
+    input.connect(limiter);
+    input.connect(convolver);
+    convolver.connect(wet);
+    wet.connect(limiter);
+    limiter.connect(post);
+    post.connect(ctx.destination);
+    fx.ctx = ctx; fx.input = input; fx.wet = wet; fx.limiter = limiter; fx.post = post;
+    calibrateLimiter(ctx.sampleRate);
+    return input;
+  }
+
+  // Browsers add their own make-up gain inside the compressor. Measure it once with a quiet tone and
+  // cancel it, so the limiter only acts on peaks and normal playing keeps its level.
+  function calibrateLimiter(sampleRate) {
+    try {
+      const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Offline) return;
+      const off = new Offline(1, Math.floor(sampleRate * 0.5), sampleRate);
+      const osc = off.createOscillator();
+      osc.frequency.value = 440;
+      const quiet = off.createGain();
+      quiet.gain.value = 0.05;
+      const comp = off.createDynamicsCompressor();
+      comp.threshold.value = fx.limiter.threshold.value;
+      comp.knee.value = fx.limiter.knee.value;
+      comp.ratio.value = fx.limiter.ratio.value;
+      comp.attack.value = fx.limiter.attack.value;
+      comp.release.value = fx.limiter.release.value;
+      osc.connect(quiet); quiet.connect(comp); comp.connect(off.destination);
+      osc.start(0);
+      const done = (rendered) => {
+        const d = rendered.getChannelData(0);
+        let peak = 0;
+        for (let i = Math.floor(d.length / 2); i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+        const makeup = peak / 0.05;
+        if (makeup > 0.5 && makeup < 4 && fx.post) fx.post.gain.value = 1 / makeup;
+      };
+      const promise = off.startRendering();
+      if (promise && promise.then) promise.then(done).catch(() => {});
+      else off.oncomplete = (e) => done(e.renderedBuffer);
+    } catch (e) { /* keep the default trim */ }
+  }
+
+  function installOutputChain() {
+    if (!window.AudioNode || !AudioNode.prototype.connect) return;
+    const nativeConnect = AudioNode.prototype.connect;
+    AudioNode.prototype.connect = function (target) {
+      try {
+        const isSynthOutput = (window.AudioWorkletNode && this instanceof AudioWorkletNode) ||
+          (window.ScriptProcessorNode && this instanceof ScriptProcessorNode);
+        if (isSynthOutput && target === this.context.destination) {
+          const chainInput = fx.ctx === this.context && fx.input ? fx.input : buildOutputChain(this.context);
+          return nativeConnect.call(this, chainInput);
+        }
+      } catch (e) {
+        console.warn('[Score] output chain unavailable, playing dry', e);
+      }
+      return nativeConnect.apply(this, arguments);
+    };
+  }
+
+  function setReverb(on) {
+    settings.reverb = !!on;
+    els.btnReverb.setAttribute('aria-pressed', settings.reverb ? 'true' : 'false');
+    if (fx.wet && fx.ctx) fx.wet.gain.setTargetAtTime(settings.reverb ? REVERB_LEVEL : 0, fx.ctx.currentTime, 0.05);
+    saveSettings();
   }
 
   /* ---------------------------------------------------------------------
@@ -358,13 +659,15 @@
     showLoading('Opening ' + name);
     state.fileName = name;
     resetForNewScore();
+    const score = parseScore(bytes, name);
     let ok = false;
     try {
-      const score = parseScore(bytes, name);
       ok = state.api.load(score || bytes, initialTrackIndexes());
     } catch (e) {
-      ok = false;
-      console.error(e);
+      console.error('[Score] could not open', name, e);
+      hideLoading();
+      toast(score ? 'Something went wrong while opening this file.' : 'This file type is not supported.', true);
+      return;
     }
     if (!ok) {
       hideLoading();
@@ -373,13 +676,15 @@
   }
 
   function openLibrarySong(record) {
+    // The library stores an ArrayBuffer; everything else in Score works with a Uint8Array view of it.
+    const bytes = record.data instanceof Uint8Array ? record.data : new Uint8Array(record.data);
     pending.name = record.name;
-    pending.bytes = record.data;
+    pending.bytes = bytes;
     pending.songId = record.id;
     pending.saveToLibrary = true;
     pending.practice = record.practice || null;
     state.isDemo = false;
-    loadBytes(new Uint8Array(record.data), record.name);
+    loadBytes(bytes, record.name);
   }
 
   function openDemo() {
@@ -405,6 +710,7 @@
   }
 
   function onScoreLoaded(score) {
+    applyGuitarSound(score);
     state.score = score;
     state.songId = pending.songId;
     state.loads++;
@@ -584,6 +890,15 @@
     return n ? n : '';
   }
 
+  function refreshTrackSubtitles() {
+    if (!state.score) return;
+    els.trackList.querySelectorAll('.track').forEach((row) => {
+      const track = state.score.tracks[Number(row.dataset.index)];
+      const sub = row.querySelector('.track-name small');
+      if (track && sub) sub.textContent = trackSubtitle(track);
+    });
+  }
+
   function refreshTrackRows() {
     els.trackList.querySelectorAll('.track').forEach((row) => {
       const i = Number(row.dataset.index);
@@ -683,7 +998,7 @@
   let lastTempo = { original: 0, modified: 0 };
   function updateBpm(original, modified) {
     if (typeof original === 'number' && original > 0) lastTempo = { original, modified };
-    const base = lastTempo.original || (state.score ? state.score.tempo : 0);
+    const base = state.score ? (lastTempo.original || state.score.tempo) : 0;
     if (!base) { els.bpmValue.textContent = ''; return; }
     const effective = Math.round(base * state.speed);
     els.bpmValue.textContent = state.speed === 1 ? `${base} bpm` : `${effective} bpm (${base})`;
@@ -1126,6 +1441,8 @@
   els.progress.addEventListener('pointerup', () => { state.seeking = false; });
 
   els.masterVolume.addEventListener('input', () => setMasterVolume(els.masterVolume.value / 100));
+  document.querySelectorAll('#segSound button').forEach((b) => b.addEventListener('click', () => setGuitarSound(b.dataset.value)));
+  els.btnReverb.addEventListener('click', () => setReverb(!settings.reverb));
 
   $('btnLoopApply').addEventListener('click', () => {
     const s = Number(els.loopStart.value) || 1;
@@ -1327,12 +1644,17 @@
     els.btnCountIn.setAttribute('aria-pressed', settings.countIn ? 'true' : 'false');
     els.speedValue.textContent = '100%';
 
+    document.querySelectorAll('#segSound button').forEach((b) => b.classList.toggle('active', b.dataset.value === settings.guitarSound));
+    els.btnReverb.setAttribute('aria-pressed', settings.reverb ? 'true' : 'false');
+
     if (typeof alphaTab === 'undefined') {
       toast('alphaTab failed to load. Serve Score over http(s), not from file://', true);
       return;
     }
+    installOutputChain();
     createApi();
     updatePlayEnabled();
+    loadSounds();
     console.info('[Score] v' + APP_VERSION + ' using alphaTab ' + (alphaTab.meta ? alphaTab.meta.version : ''));
   }
 
@@ -1342,6 +1664,6 @@
   window.Score = {
     get api() { return state.api; },
     get state() { return state; },
-    setLoopBars, clearLoop, setSpeed, openDemo, version: APP_VERSION,
+    setLoopBars, clearLoop, setSpeed, openDemo, setGuitarSound, setReverb, fx, version: APP_VERSION,
   };
 })();

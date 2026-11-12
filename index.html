@@ -10,8 +10,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Score">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Score, the Guitar Pro player that helps you practice">
+<meta property="og:description" content="Open any Guitar Pro file in the browser. Slow it down, loop a section, mute or solo tracks. No account, works offline.">
+<meta property="og:image" content="https://rohittabs.github.io/score/icon-512.png">
+<meta property="og:url" content="https://rohittabs.github.io/score/">
 <link rel="stylesheet" href="css/score.css">
 </head>
 <body>
@@ -21,9 +26,7 @@
   <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="26" height="26"><path d="M6 8h20M6 13h20M6 18h20M6 23h20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><circle cx="12" cy="18" r="3.2" fill="currentColor"/><path d="M15.2 18V7.5l6 2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
-      </span>
+      <img class="brand-mark" src="icon-192.png" width="30" height="30" alt="">
       <span class="brand-name">Score</span>
       <span class="brand-tag">Play it slow. Loop it. Own it.</span>
     </div>
@@ -57,6 +60,25 @@
 
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
+      <section class="panel">
+        <h2>Guitar sound</h2>
+        <div class="seg" id="segSound" role="group" aria-label="Guitar sound">
+          <button data-value="original" class="active" title="Play every track with the instrument written in the file">Original</button>
+          <button data-value="acoustic" title="Steel string acoustic guitar">Acoustic</button>
+          <button data-value="electric" title="Clean electric guitar">Electric</button>
+          <button data-value="nylon" title="Nylon string classical guitar">Nylon</button>
+        </div>
+        <p class="hint">Changes every guitar track in the song. Bass, drums and other instruments stay as written.</p>
+        <div class="row">
+          <span class="row-label">Room</span>
+          <button class="btn small toggle" id="btnReverb" aria-pressed="true" title="A little room reverb so the instruments do not sound dry">Reverb</button>
+        </div>
+        <div class="row">
+          <span class="row-label">Volume</span>
+          <input type="range" id="masterVolume" min="0" max="100" value="100" aria-label="Master volume">
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Loop section</h2>
         <div class="loop-grid">
@@ -101,15 +123,11 @@
           <span class="mono" id="zoomValue">100%</span>
           <button class="btn small" id="btnZoomIn">+</button>
         </div>
-        <div class="row">
-          <span class="row-label">Volume</span>
-          <input type="range" id="masterVolume" min="0" max="100" value="100" aria-label="Master volume">
-        </div>
       </section>
 
       <section class="panel about">
         <p>Score runs entirely in your browser. Files never leave this device. Songs you open are kept in a local library so they work offline.</p>
-        <p class="muted">Rendering and audio by <a href="https://alphatab.net" target="_blank" rel="noopener">alphaTab</a>. Formats: .gp (GP7 and GP8), .gpx (GP6), .gp3, .gp4, .gp5, MusicXML, Capella.</p>
+        <p class="muted">Rendering and playback by <a href="https://alphatab.net" target="_blank" rel="noopener">alphaTab</a>. Sounds from FreePats, MuseScore_General and GeneralUser GS (<a href="sounds/LICENSES.md" target="_blank" rel="noopener">licences</a>). Formats: .gp (GP7 and GP8), .gpx (GP6), .gp3, .gp4, .gp5, MusicXML, Capella.</p>
       </section>
     </aside>
 
@@ -124,9 +142,7 @@
       <!-- Empty state / drop zone -->
       <div class="dropzone" id="dropzone">
         <div class="drop-inner">
-          <div class="drop-icon" aria-hidden="true">
-            <svg viewBox="0 0 64 64" width="64" height="64"><path d="M32 40V14M22 24l10-10 10 10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 38v8a6 6 0 0 0 6 6h28a6 6 0 0 0 6-6v-8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
-          </div>
+          <img class="drop-logo" src="icon-192.png" width="84" height="84" alt="">
           <h1>Drop a Guitar Pro file</h1>
           <p>.gp, .gpx, .gp3, .gp4, .gp5 (and MusicXML)</p>
           <div class="drop-buttons">
@@ -134,6 +150,7 @@
             <button class="btn" id="btnDemo">Try the demo riff</button>
           </div>
           <p class="muted small">No account. No upload. Works offline after the first visit.</p>
+          <p class="small"><a href="slides.html">Take the two minute tour</a></p>
         </div>
       </div>
 
@@ -148,6 +165,10 @@
 
   <!-- Transport -->
   <footer class="transport">
+    <div class="sound-status" id="soundStatus" hidden>
+      <span id="soundStatusText">Loading sounds</span>
+      <span class="sound-status-track"><span class="sound-status-bar" id="soundStatusBar"></span></span>
+    </div>
     <div class="transport-row progress-row">
       <span class="mono time" id="timeCurrent">0:00</span>
       <input type="range" id="progress" min="0" max="1000" value="0" step="1" aria-label="Position">
