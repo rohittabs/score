@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.2.1';
   const SETTINGS_KEY = 'score.settings.v1';
   const DB_NAME = 'score-library';
   const DB_STORE = 'songs';
@@ -1833,7 +1833,7 @@
     const all = [...fileList];
     const files = all.filter((f) => isSupportedName(f.name));
     if (!files.length) {
-      toast('Drop a Guitar Pro file (.gp, .gpx, .gp3, .gp4, .gp5) or a MuseScore file (.mscz, .mscx).', true);
+      toast('Score opens Guitar Pro files (.gp, .gpx, .gp3, .gp4, .gp5) and MuseScore files (.mscz, .mscx).', true);
       return;
     }
     if (files.length < all.length) {
@@ -1869,6 +1869,13 @@
   function hasFiles(e) {
     return e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
   }
+
+  // iPhone and iPad only understand file types they know. .gp, .gp5, .mscz and friends are unknown to iOS,
+  // so with an accept list the picker greys them all out (only .xml stays selectable). On those devices the
+  // picker shows every file instead, and handleFiles() still checks the names and explains anything it skips.
+  const isAppleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS reports itself as a Mac
+  if (isAppleTouch) els.fileInput.removeAttribute('accept');
 
   els.fileInput.addEventListener('change', () => {
     if (els.fileInput.files.length) handleFiles(els.fileInput.files);
